@@ -1,6 +1,20 @@
 let stompClient = null;
 let username = null;
 
+// Ajout : Écouteur d'événement pour la touche "Entrée" sur le champ de message
+document.addEventListener("DOMContentLoaded", function() {
+    const messageInput = document.getElementById("message");
+    
+    // Quand une touche est enfoncée dans la zone de texte
+    messageInput.addEventListener("keypress", function(event) {
+        // Si la touche est "Entrée" (Enter)
+        if (event.key === "Enter") {
+            event.preventDefault(); // Empêche le saut de ligne par défaut
+            sendMessage(); // Envoie le message
+        }
+    });
+});
+
 function connect() {
     username = document.getElementById("username").value.trim();
     if (!username) {
@@ -23,11 +37,15 @@ function connect() {
 }
 
 function sendMessage() {
-    const content = document.getElementById("message").value.trim();
+    const messageInput = document.getElementById("message"); // On récupère l'élément
+    const content = messageInput.value.trim();
+
     if (content && stompClient) {
         const chatMessage = { from: username, content: content };
         stompClient.send("/app/sendMessage", {}, JSON.stringify(chatMessage));
-        document.getElementById("message").value = '';
+        
+        messageInput.value = ''; // Vide la zone de texte
+        messageInput.focus();    // <-- C'est ici qu'on remet le focus (le curseur)
     }
 }
 
