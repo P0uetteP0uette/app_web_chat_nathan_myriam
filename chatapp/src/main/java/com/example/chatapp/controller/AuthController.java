@@ -33,4 +33,9 @@ public class AuthController {
             return "register";
         }
     }
+
+    @GetMapping("/login")
+    public String showLoginForm() {
+        return "login";
+    }
 }

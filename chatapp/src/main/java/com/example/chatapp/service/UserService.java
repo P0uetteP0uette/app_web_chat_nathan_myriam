@@ -18,7 +18,10 @@ public class UserService {
     private PasswordEncoder passwordEncoder;
 
     // Regex pour : Min 8 char, 1 maj, 1 min, 1 chiffre, 1 char spécial
-    private static final String PASSWORD_REGEX = "^(?=.*[a-z])(?=.*[A-Z])(?=.*\\d)(?=.*[@$!%*?&])[A-Za-z\\d@$!%*?&]{8,}$";
+    //private static final String PASSWORD_REGEX = "^(?=.*[a-z])(?=.*[A-Z])(?=.*\\d)(?=.*[@$!%*?&])[A-Za-z\\d@$!%*?&]{8,}$";
+    
+    // Version simplifiée pour le dev (accepte tout tant que c'est > 3 caractères)
+    private static final String PASSWORD_REGEX = "^.{4,}$";
     private static final Pattern PATTERN = Pattern.compile(PASSWORD_REGEX);
 
     public void registerUser(String username, String password) throws Exception {
