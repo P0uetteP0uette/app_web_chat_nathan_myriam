@@ -2,29 +2,42 @@ let stompClient = null;
 
 document.addEventListener("DOMContentLoaded", function() {
     
-    // 1. Récupérer ceux qui sont DÉJÀ là via l'API REST
+    // 1. Charger la liste des utilisateurs
     fetch('/api/users')
         .then(response => response.json())
         .then(users => {
             users.forEach(user => addUserToSidebar(user));
         });
 
-    // 2. Se connecter au WebSocket
+    // 2. NOUVEAU : Charger l'historique des messages
+    fetch('/api/history')
+        .then(response => response.json())
+        .then(messages => {
+            messages.forEach(msg => {
+                // On adapte l'objet reçu de la BDD pour notre fonction d'affichage
+                const chatMsg = {
+                    from: msg.sender,
+                    content: msg.content,
+                    time: msg.time,
+                    type: 'CHAT'
+                };
+                showChatMessage(chatMsg);
+            });
+        });
+
+    // 3. Connexion WebSocket (Reste inchangé)
     const socket = new SockJS('/chat-websocket');
     stompClient = Stomp.over(socket);
 
     stompClient.connect({}, () => {
-        // S'abonner aux messages
         stompClient.subscribe('/topic/public', (messageOutput) => {
             const msg = JSON.parse(messageOutput.body);
             onMessageReceived(msg);
         });
-
-        // Dire "Je suis là" (JOIN)
         stompClient.send("/app/chat.addUser", {}, JSON.stringify({}));
     });
 
-    // Touche Entrée pour envoyer
+    // Gestion Entrée (Reste inchangé)
     const messageInput = document.getElementById("message");
     messageInput.addEventListener("keydown", function(event) {
         if (event.key === "Enter") {
@@ -33,6 +46,8 @@ document.addEventListener("DOMContentLoaded", function() {
         }
     });
 });
+
+// ... Le reste du fichier (sendMessage, onMessageReceived, etc.) ne change pas ...
 
 function sendMessage() {
     const messageInput = document.getElementById("message");
