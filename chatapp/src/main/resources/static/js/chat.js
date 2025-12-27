@@ -78,17 +78,30 @@ function showChatMessage(msg, isPrivate = false) {
     const box = document.getElementById("chat-box");
     const div = document.createElement("div");
 
-    // Style spécial pour le privé
-    if (isPrivate) {
-        div.style.backgroundColor = "#ffefc1"; // Fond jaune clair pour distinguer
-        div.style.border = "1px solid #e1c563";
-        div.innerHTML = `🔒 <b>[Privé] ${msg.from}</b> [${msg.time}]: ${msg.content}`;
-    } else {
-        div.innerHTML = `<b>${msg.from}</b> [${msg.time}]: ${msg.content}`;
-    }
-    
-    div.style.padding = "5px";
-    div.style.marginBottom = "5px";
+    // Génération de l'avatar basé sur le pseudo (seed)
+    // On utilise le style "identicon" ou "bottts" ou "avataaars"
+    const avatarUrl = `https://api.dicebear.com/7.x/bottts/svg?seed=${msg.from}`;
+
+    // Construction du HTML du message avec Avatar + Texte
+    let htmlContent = `
+        <div style="display: flex; align-items: flex-start; margin-bottom: 10px;">
+            <img src="${avatarUrl}" alt="Avatar" style="width: 35px; height: 35px; border-radius: 50%; margin-right: 10px; border: 2px solid #ddd;">
+            <div>
+                <div style="font-size: 0.8em; color: #555; margin-bottom: 2px;">
+                    <b>${msg.from}</b> <span style="color: #aaa;">[${msg.time}]</span>
+                </div>
+                <div style="background-color: ${isPrivate ? '#ffefc1' : '#f1f1f1'}; 
+                            border: 1px solid ${isPrivate ? '#e1c563' : '#ddd'}; 
+                            padding: 8px 12px; 
+                            border-radius: 10px; 
+                            display: inline-block;">
+                    ${isPrivate ? '🔒 ' : ''}${msg.content}
+                </div>
+            </div>
+        </div>
+    `;
+
+    div.innerHTML = htmlContent;
     box.appendChild(div);
     box.scrollTop = box.scrollHeight;
 }
