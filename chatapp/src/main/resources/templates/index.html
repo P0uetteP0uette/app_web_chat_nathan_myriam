@@ -10,12 +10,18 @@
     <div id="chat-container">
         
         <div id="sidebar">
-            <h3>En ligne 🟢</h3>
+            <h3>Utilisateurs</h3>
             <ul id="users-list">
                 </ul>
             <hr>
             <div id="current-user">
                 Moi : <b th:text="${username}">Invité</b>
+                
+                <select id="status-select" onchange="sendStatusChange()" style="margin-top: 5px; width: 100%; padding: 5px; border-radius: 5px;">
+                    <option value="ONLINE">🟢 En ligne</option>
+                    <option value="BUSY">🔴 Occupé</option>
+                    <option value="AWAY">🟠 Absent</option>
+                </select>
             </div>
             <form action="/logout" method="post" style="margin-top: 10px;">
                 <button type="submit" class="logout-btn">Déconnexion</button>
