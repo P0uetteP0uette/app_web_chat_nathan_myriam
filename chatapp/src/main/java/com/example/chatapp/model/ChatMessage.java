@@ -7,6 +7,7 @@ public class ChatMessage {
     private String content;
     private String from;
     private String time;
+    private String recipient;
 
     // Constructeur vide
     public ChatMessage() {}
@@ -23,4 +24,7 @@ public class ChatMessage {
 
     public String getTime() { return time; }
     public void setTime(String time) { this.time = time; }
+
+    public String getRecipient() { return recipient; }
+    public void setRecipient(String recipient) { this.recipient = recipient; }
 }
