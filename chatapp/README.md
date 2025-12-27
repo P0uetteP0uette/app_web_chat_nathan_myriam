@@ -1,10 +1,12 @@
-# 💬 Application Web de Chat – Itération 1 (MVP)
+# 💬 Application Web de Chat
 
 ## 👥 Auteurs
 - **Nathan Lyonnet**
-- **[Nom du binôme]**
+- **Myriam Laborde Boy**
 
 ---
+
+# 📅 Livrable 1 : Itération MVP
 
 ## 🧭 Présentation du projet
 
@@ -16,8 +18,6 @@ Cette première itération correspond à la **version MVP** (Minimum Viable Prod
 - d’envoyer et recevoir des messages en **temps réel**,  
 - et de **quitter le chat** à tout moment.
 
----
-
 ## 🎯 Objectifs pédagogiques
 
 - Travailler en **binôme** avec gestion Git professionnelle.
@@ -25,8 +25,6 @@ Cette première itération correspond à la **version MVP** (Minimum Viable Prod
 - Comprendre les bases de la **communication en temps réel (WebSocket)**.
 - Respecter les **bonnes pratiques de codage** et la **sécurisation des entrées**.
 - Produire une **documentation complète** (README, commentaires, versioning).
-
----
 
 ## ⚙️ Technologies utilisées
 
@@ -40,8 +38,6 @@ Cette première itération correspond à la **version MVP** (Minimum Viable Prod
 | **VS Code** | IDE |
 | **GitLab** | Hébergement du dépôt et collaboration |
 | **SonarQube (optionnel)** | Analyse de la qualité du code |
-
----
 
 ## 🏗️ Architecture logicielle (MVC)
 
@@ -68,8 +64,6 @@ com.example.chatapp
 | **Service** | Contient la logique applicative (stockage temporaire). |
 | **View** | Interface HTML/JS qui communique via WebSocket. |
 
----
-
 ## 💬 Fonctionnalités de l’itération 1
 
 ### ✅ Fonctionnelles
@@ -88,8 +82,6 @@ com.example.chatapp
 3. **Déconnexion**
    - L’utilisateur peut quitter le chat et revenir à la page d’accueil.
 
----
-
 ### ⚙️ Techniques
 
 - Communication en **temps réel** via **Spring WebSocket** (STOMP + SockJS).
@@ -98,16 +90,12 @@ com.example.chatapp
 - **Protection minimale contre XSS** (échappement des caractères spéciaux).
 - **Interface responsive et minimaliste.**
 
----
-
 ## 🔒 Sécurité
 
 - Vérification du pseudonyme non vide avant connexion.
 - Nettoyage des messages côté serveur pour éviter le script injection (XSS).
 - Empêchement d’envoi de messages vides.
 - Aucun stockage persistant (pas de fuite de données).
-
----
 
 ## 🧰 Dépendances principales (Maven)
 
@@ -138,3 +126,110 @@ com.example.chatapp
         <scope>test</scope>
     </dependency>
 </dependencies>
+```
+
+# 📅 Livrable 2
+
+## Évolution du projet
+
+Cette seconde itération fait évoluer le MVP vers une application robuste en intégrant une **base de données relationnelle** et un système d'**authentification sécurisé**. L'anonymat laisse place à des comptes utilisateurs persistants et l'interface s'enrichit d'une gestion dynamique des présences.
+
+## 🎯 Nouveaux Objectifs pédagogiques
+
+- Mettre en place une base de données **MySQL**.
+- Utiliser **Spring Data JPA** pour la persistance des données.
+- Sécuriser l'application avec **Spring Security** (Inscription/Connexion).
+- Gérer les événements WebSocket avancés (Connexion/Déconnexion).
+
+## ⚙️ Nouvelles Technologies intégrées
+
+| Technologie | Rôle |
+|--------------|------|
+| **MySQL** | Base de données relationnelle (via XAMPP) |
+| **Spring Data JPA** | Gestion de la persistance (Hibernate) |
+| **Spring Security** | Gestion de l'authentification et hachage |
+| **Thymeleaf Extras** | Intégration de la sécurité dans les vues |
+
+## 🏗️ Architecture logicielle
+
+L'architecture s'enrichit d'une couche d'accès aux données (Repository) et de configuration de sécurité.
+
+### 📂 Structure ajoutée
+
+com.example.chatapp
+├── config/
+│   ├── SecurityConfig.java → Règles de sécurité et chiffrement
+│   └── WebSocketEventListener.java → Gestion des événements (Join/Leave)
+├── model/
+│   ├── User.java → Entité utilisateur (BDD)
+│   └── MessageType.java → Enumération des types de messages
+├── repository/
+│   └── UserRepository.java → Interface d'interaction SQL (JPA)
+└── service/
+    └── UserService.java → Logique métier d'inscription
+
+## 💬 Fonctionnalités de l’itération 2
+
+### ✅ Fonctionnelles
+
+1. **Authentification complète**
+    - **Inscription** : Création de compte avec pseudo unique et mot de passe sécurisé.
+    - **Connexion** : Authentification via formulaire sécurisé.
+
+2. **Liste des utilisateurs connectés (Sidebar)**
+    - Visualisation en temps réel de la liste des utilisateurs présents dans le chat.
+    - Mise à jour dynamique lors des arrivées et départs.
+
+3. **Notifications système**
+    - Messages automatiques dans le chat : *"User a rejoint la conversation" / "User a quitté la conversation"*.
+
+### ⚙️ Techniques
+
+- **Persistance** : Les comptes utilisateurs sont stockés durablement dans MySQL.
+- **Sécurité** :
+    - Les mots de passe sont hachés avec **BCrypt**.
+    - L'accès au chat est bloqué pour les utilisateurs non connectés.
+- **WebSocket Events** : Le serveur détecte la fermeture du socket (onglet fermé) pour mettre à jour la liste des présents.
+
+## 📝 Installation et Configuration
+
+Pour faire fonctionner cette version, **MySQL** est requis.
+
+### 1. **Base de données**
+
+Assurez-vous que le module MySQL de XAMPP (ou autre) est lancé sur le port 3306. Créez la base de données :
+
+```SQL
+CREATE DATABASE chatapp_db;
+```
+La table users sera créée automatiquement par Hibernate au lancement.
+
+### 2. **Accès à l'application**
+
+Il suffit d'aller sur un navigateur internet et de taper dans l'url : http://localhost:8080
+
+Ainsi vous pourrez accéder à l'application.
+Si une autre personne souhaite accéder aussi à l'application, le plus simpleest que vous soyez connecté sur le meme réseau. Ensuite il lui suffira de taper dans l'url : http://*votre@IP*:8080
+
+## 🧰 Nouvelles Dépendances (Maven)
+
+```XML
+<dependency>
+    <groupId>org.springframework.boot</groupId>
+    <artifactId>spring-boot-starter-data-jpa</artifactId>
+</dependency>
+<dependency>
+    <groupId>com.mysql</groupId>
+    <artifactId>mysql-connector-j</artifactId>
+    <scope>runtime</scope>
+</dependency>
+
+<dependency>
+    <groupId>org.springframework.boot</groupId>
+    <artifactId>spring-boot-starter-security</artifactId>
+</dependency>
+<dependency>
+    <groupId>org.thymeleaf.extras</groupId>
+    <artifactId>thymeleaf-extras-springsecurity6</artifactId>
+</dependency>
+```
