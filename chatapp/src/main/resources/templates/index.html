@@ -1,21 +1,45 @@
 <!DOCTYPE html>
-<html lang="fr">
+<html lang="fr" xmlns:th="http://www.thymeleaf.org">
 <head>
     <meta charset="UTF-8">
     <title>Chat App</title>
     <link rel="stylesheet" href="css/style.css">
 </head>
 <body>
-    <div id="chat-page">
-        <h2>Chat général</h2>
-        <div id="chat-box"></div>
-        <input id="message" type="text" placeholder="Votre message">
-        <button onclick="sendMessage()">Envoyer</button>
-        <button onclick="disconnect()">Quitter</button>
+
+    <div id="chat-container">
+        
+        <div id="sidebar">
+            <h3>En ligne 🟢</h3>
+            <ul id="users-list">
+                </ul>
+            <hr>
+            <div id="current-user">
+                Moi : <b th:text="${username}">Invité</b>
+            </div>
+            <form action="/logout" method="post" style="margin-top: 10px;">
+                <button type="submit" class="logout-btn">Déconnexion</button>
+            </form>
+        </div>
+
+        <div id="chat-page">
+            <div id="chat-header">
+                <h2>Chat Général</h2>
+            </div>
+            
+            <div id="chat-box"></div>
+
+            <div id="message-controls">
+                <input id="message" type="text" placeholder="Votre message...">
+                <button onclick="sendMessage()">Envoyer</button>
+            </div>
+        </div>
+
     </div>
 
-    <script src="https://cdn.jsdelivr.net/npm/sockjs-client@1/dist/sockjs.min.js"></script>
-    <script src="https://cdn.jsdelivr.net/npm/stompjs@2.3.3/lib/stomp.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/sockjs-client/1.6.1/sockjs.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/stomp.js/2.3.3/stomp.min.js"></script>
     <script src="js/chat.js"></script>
+
 </body>
 </html>
