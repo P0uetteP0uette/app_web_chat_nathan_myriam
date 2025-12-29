@@ -39,22 +39,6 @@ Cette première itération correspond à la **version MVP** (Minimum Viable Prod
 | **GitLab** | Hébergement du dépôt et collaboration |
 | **SonarQube (optionnel)** | Analyse de la qualité du code |
 
-## 🏗️ Architecture logicielle (MVC)
-
-### 📂 Structure du projet
-
-com.example.chatapp
-├── ChatAppApplication.java → Point d’entrée de l’application
-├── config/
-│ └── WebSocketConfig.java → Configuration du broker WebSocket
-├── controller/
-│ └── ChatController.java → Réception et diffusion des messages
-├── model/
-│ └── ChatMessage.java → Représente un message (pseudo, texte, heure)
-└── service/
-└── ChatService.java → Gestion temporaire des messages
-
-
 ### 💡 Description des composants
 
 | Couche | Rôle |
@@ -97,37 +81,6 @@ com.example.chatapp
 - Empêchement d’envoi de messages vides.
 - Aucun stockage persistant (pas de fuite de données).
 
-## 🧰 Dépendances principales (Maven)
-
-```xml
-<dependencies>
-    <!-- Spring Web -->
-    <dependency>
-        <groupId>org.springframework.boot</groupId>
-        <artifactId>spring-boot-starter-web</artifactId>
-    </dependency>
-
-    <!-- WebSocket -->
-    <dependency>
-        <groupId>org.springframework.boot</groupId>
-        <artifactId>spring-boot-starter-websocket</artifactId>
-    </dependency>
-
-    <!-- Thymeleaf (optionnel pour pages dynamiques) -->
-    <dependency>
-        <groupId>org.springframework.boot</groupId>
-        <artifactId>spring-boot-starter-thymeleaf</artifactId>
-    </dependency>
-
-    <!-- Tests unitaires -->
-    <dependency>
-        <groupId>org.springframework.boot</groupId>
-        <artifactId>spring-boot-starter-test</artifactId>
-        <scope>test</scope>
-    </dependency>
-</dependencies>
-```
-
 # 📅 Livrable 2
 
 ## Évolution du projet
@@ -150,86 +103,41 @@ Cette seconde itération fait évoluer le MVP vers une application robuste en in
 | **Spring Security** | Gestion de l'authentification et hachage |
 | **Thymeleaf Extras** | Intégration de la sécurité dans les vues |
 
-## 🏗️ Architecture logicielle
+## ✨ Fonctionnalités implémentées
 
-L'architecture s'enrichit d'une couche d'accès aux données (Repository) et de configuration de sécurité.
+### 🔐 Authentification & Sécurité
+- Inscription et Connexion des utilisateurs (cryptage BCrypt).
+- Protection des routes (impossible d'accéder au chat sans être connecté).
+- Redirection automatique après login/logout.
 
-### 📂 Structure ajoutée
+### 💬 Chat Temps Réel
+- **Chat Public** : Diffusion des messages à tous les utilisateurs connectés.
+- **Chat Privé** : Messagerie 1-to-1 sécurisée (seul le destinataire reçoit le message).
+- **Indicateurs visuels** : Cadenas 🔒 et fond jaune pour les messages privés.
 
-com.example.chatapp
-├── config/
-│   ├── SecurityConfig.java → Règles de sécurité et chiffrement
-│   └── WebSocketEventListener.java → Gestion des événements (Join/Leave)
-├── model/
-│   ├── User.java → Entité utilisateur (BDD)
-│   └── MessageType.java → Enumération des types de messages
-├── repository/
-│   └── UserRepository.java → Interface d'interaction SQL (JPA)
-└── service/
-    └── UserService.java → Logique métier d'inscription
+### 💾 Persistance des données (MySQL)
+- Sauvegarde de tous les messages publics en base de données.
+- Chargement automatique de l'historique (50 derniers messages) à la connexion.
 
-## 💬 Fonctionnalités de l’itération 2
+### 👤 Expérience Utilisateur (UX)
+- **Liste des connectés** : Mise à jour en temps réel (Connexion/Déconnexion).
+- **Statuts** : Gestion des états (🟢 En ligne, 🔴 Occupé, 🟠 Absent).
+- **Tri intelligent** : L'utilisateur courant ("Moi") apparaît toujours en haut de la liste, en jaune et gras.
+- **Avatars** : Génération automatique d'avatars via l'API DiceBear.
+- **Regroupement** : Les messages successifs d'un même utilisateur sont groupés visuellement (style Discord).
 
-### ✅ Fonctionnelles
 
-1. **Authentification complète**
-    - **Inscription** : Création de compte avec pseudo unique et mot de passe sécurisé.
-    - **Connexion** : Authentification via formulaire sécurisé.
+## 🛠️ Stack Technique
+- **Backend** : Java 17, Spring Boot 3, Spring Security, Spring Data JPA.
+- **Frontend** : Thymeleaf, JavaScript (Vanilla), SockJS, Stomp.js.
+- **Base de données** : MySQL.
 
-2. **Liste des utilisateurs connectés (Sidebar)**
-    - Visualisation en temps réel de la liste des utilisateurs présents dans le chat.
-    - Mise à jour dynamique lors des arrivées et départs.
+## 🚀 Comment lancer le projet
 
-3. **Notifications système**
-    - Messages automatiques dans le chat : *"User a rejoint la conversation" / "User a quitté la conversation"*.
-
-### ⚙️ Techniques
-
-- **Persistance** : Les comptes utilisateurs sont stockés durablement dans MySQL.
-- **Sécurité** :
-    - Les mots de passe sont hachés avec **BCrypt**.
-    - L'accès au chat est bloqué pour les utilisateurs non connectés.
-- **WebSocket Events** : Le serveur détecte la fermeture du socket (onglet fermé) pour mettre à jour la liste des présents.
-
-## 📝 Installation et Configuration
-
-Pour faire fonctionner cette version, **MySQL** est requis.
-
-### 1. **Base de données**
-
-Assurez-vous que le module MySQL de XAMPP (ou autre) est lancé sur le port 3306. Créez la base de données :
-
-```SQL
-CREATE DATABASE chatapp_db;
-```
-La table users sera créée automatiquement par Hibernate au lancement.
-
-### 2. **Accès à l'application**
-
-Il suffit d'aller sur un navigateur internet et de taper dans l'url : http://localhost:8080
+1. Créer une base de données MySQL nommée `chatapp_db`.
+2. Configurer les accès dans `src/main/resources/application.properties`.
+3. Lancer l'application : `mvn spring-boot:run`.
+4. Accéder à : `http://localhost:8080`.
 
 Ainsi vous pourrez accéder à l'application.
-Si une autre personne souhaite accéder aussi à l'application, le plus simpleest que vous soyez connecté sur le meme réseau. Ensuite il lui suffira de taper dans l'url : http://*votre@IP*:8080
-
-## 🧰 Nouvelles Dépendances (Maven)
-
-```XML
-<dependency>
-    <groupId>org.springframework.boot</groupId>
-    <artifactId>spring-boot-starter-data-jpa</artifactId>
-</dependency>
-<dependency>
-    <groupId>com.mysql</groupId>
-    <artifactId>mysql-connector-j</artifactId>
-    <scope>runtime</scope>
-</dependency>
-
-<dependency>
-    <groupId>org.springframework.boot</groupId>
-    <artifactId>spring-boot-starter-security</artifactId>
-</dependency>
-<dependency>
-    <groupId>org.thymeleaf.extras</groupId>
-    <artifactId>thymeleaf-extras-springsecurity6</artifactId>
-</dependency>
-```
+Si une autre personne souhaite accéder aussi à l'application, le plus simple est que vous soyez connecté sur le meme réseau. Ensuite il lui suffira de taper dans l'url : http://*votre@IP*:8080
