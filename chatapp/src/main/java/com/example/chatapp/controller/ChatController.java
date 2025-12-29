@@ -21,6 +21,7 @@ import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
+import org.springframework.ui.Model;
 
 @Controller
 public class ChatController {
@@ -33,6 +34,17 @@ public class ChatController {
 
     @Autowired
     private SimpMessagingTemplate simpMessagingTemplate;
+
+
+    @GetMapping("/")
+    public String index(Model model, Principal principal) {
+        // C'est cette ligne qui manquait !
+        // On injecte le nom de celui qui est connecté pour que le HTML puisse le lire
+        if (principal != null) {
+            model.addAttribute("username", principal.getName());
+        }
+        return "index";
+    }
 
     // --- 1. CHAT PUBLIC (Sauvegardé en BDD) ---
     @MessageMapping("/sendMessage")

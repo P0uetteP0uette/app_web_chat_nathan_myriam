@@ -218,56 +218,71 @@ function getStatusColor(status) {
 
 function addUserToSidebar(username, status = 'ONLINE') {
     const list = document.getElementById("users-list");
-    if (!document.getElementById("user-" + username)) {
-        const li = document.createElement("li");
-        li.id = "user-" + username;
-        li.style.cursor = "pointer";
-        li.style.display = "flex";
-        li.style.alignItems = "center";
-        li.style.padding = "8px";
-        li.style.borderRadius = "4px";
-        li.style.marginBottom = "2px";
-        
-        const dot = document.createElement("span");
-        dot.id = "status-dot-" + username;
-        dot.style.height = "10px";
-        dot.style.width = "10px";
-        dot.style.backgroundColor = getStatusColor(status);
-        dot.style.borderRadius = "50%";
-        dot.style.marginRight = "10px";
-        
-        const text = document.createElement("span");
-        text.innerText = username;
-        text.style.color = "white";
 
-        li.appendChild(dot);
-        li.appendChild(text);
+    // DEBUG : On vérifie ce que le JS voit
+    // console.log("Comparaison : " + username + " vs " + currentUserGlobal);
 
-        li.onclick = function() {
-            if (selectedUser === username) {
-                selectedUser = null;
-                li.style.backgroundColor = "transparent";
-                li.style.fontWeight = "normal";
-                document.getElementById("chat-header").innerText = "Chat Général";
-            } else {
-                document.querySelectorAll("#users-list li").forEach(el => {
-                    el.style.backgroundColor = "transparent";
-                    el.style.fontWeight = "normal";
-                });
-                selectedUser = username;
-                li.style.backgroundColor = "rgba(255, 255, 255, 0.1)";
-                li.style.fontWeight = "bold";
-                document.getElementById("chat-header").innerText = "🔒 Privé avec " + username;
-
-                if (userStatuses[username] === 'BUSY') {
-                    showSystemMessage("⚠️ Attention : " + username + " est occupé(e).");
-                }
-            }
-        };
-        list.appendChild(li);
-    } else {
+    if (document.getElementById("user-" + username)) {
         updateUserStatus(username, status);
+        return;
     }
+
+    const li = document.createElement("li");
+    li.id = "user-" + username;
+    li.style.cursor = "pointer";
+    li.style.display = "flex";
+    li.style.alignItems = "center";
+    li.style.padding = "10px";
+    li.style.borderRadius = "4px";
+    li.style.marginBottom = "2px";
+    li.style.transition = "background 0.2s";
+
+    const dot = document.createElement("span");
+    dot.id = "status-dot-" + username;
+    dot.style.height = "10px";
+    dot.style.width = "10px";
+    dot.style.backgroundColor = getStatusColor(status);
+    dot.style.borderRadius = "50%";
+    dot.style.marginRight = "10px";
+    
+    const text = document.createElement("span");
+    text.innerText = username;
+    text.style.color = "white";
+
+    // --- LA CORRECTION EST ICI ---
+    // On compare avec la variable qu'on a définie dans le HTML
+    // On utilise 'currentUserGlobal' qui vient directement de Java
+    if (username === currentUserGlobal) {
+        text.style.fontWeight = "bold";
+        text.style.color = "#f1c40f"; // JAUNE
+        text.innerText += " (Moi)";
+        li.style.border = "1px solid rgba(241, 196, 15, 0.5)";
+    }
+    // -----------------------------
+
+    li.appendChild(dot);
+    li.appendChild(text);
+
+    li.onclick = function() {
+        if (selectedUser === username) {
+            selectedUser = null;
+            li.style.backgroundColor = "transparent";
+            document.getElementById("chat-header").innerText = "Chat Général";
+        } else {
+            document.querySelectorAll("#users-list li").forEach(el => {
+                el.style.backgroundColor = "transparent";
+            });
+            selectedUser = username;
+            li.style.backgroundColor = "rgba(255, 255, 255, 0.1)";
+            document.getElementById("chat-header").innerText = "🔒 Privé avec " + username;
+
+            if (userStatuses[username] === 'BUSY') {
+                showSystemMessage("⚠️ Attention : " + username + " est occupé(e).");
+            }
+        }
+    };
+
+    list.appendChild(li);
 }
 
 function removeUserFromSidebar(username) {
