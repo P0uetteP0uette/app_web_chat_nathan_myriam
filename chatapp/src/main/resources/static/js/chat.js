@@ -219,14 +219,13 @@ function getStatusColor(status) {
 function addUserToSidebar(username, status = 'ONLINE') {
     const list = document.getElementById("users-list");
 
-    // DEBUG : On vérifie ce que le JS voit
-    // console.log("Comparaison : " + username + " vs " + currentUserGlobal);
-
+    // 1. Mise à jour si existe déjà
     if (document.getElementById("user-" + username)) {
         updateUserStatus(username, status);
         return;
     }
 
+    // 2. Création de l'élément (identique à avant)
     const li = document.createElement("li");
     li.id = "user-" + username;
     li.style.cursor = "pointer";
@@ -249,20 +248,18 @@ function addUserToSidebar(username, status = 'ONLINE') {
     text.innerText = username;
     text.style.color = "white";
 
-    // --- LA CORRECTION EST ICI ---
-    // On compare avec la variable qu'on a définie dans le HTML
-    // On utilise 'currentUserGlobal' qui vient directement de Java
+    // 3. Style Spécial "Moi"
     if (username === currentUserGlobal) {
         text.style.fontWeight = "bold";
-        text.style.color = "#f1c40f"; // JAUNE
+        text.style.color = "#f1c40f"; // Jaune
         text.innerText += " (Moi)";
         li.style.border = "1px solid rgba(241, 196, 15, 0.5)";
     }
-    // -----------------------------
 
     li.appendChild(dot);
     li.appendChild(text);
 
+    // 4. Gestion du Clic (identique à avant)
     li.onclick = function() {
         if (selectedUser === username) {
             selectedUser = null;
@@ -282,7 +279,14 @@ function addUserToSidebar(username, status = 'ONLINE') {
         }
     };
 
-    list.appendChild(li);
+    // --- C'EST ICI QUE CA CHANGE ---
+    // Si c'est MOI -> Je me mets tout en haut (prepend)
+    // Si c'est les AUTRES -> Ils vont à la suite (appendChild)
+    if (username === currentUserGlobal) {
+        list.prepend(li); 
+    } else {
+        list.appendChild(li);
+    }
 }
 
 function removeUserFromSidebar(username) {
