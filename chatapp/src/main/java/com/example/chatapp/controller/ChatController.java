@@ -54,21 +54,24 @@ public class ChatController {
         return chatMessage;
     }
 
-    // --- 2. CHAT PRIVÉ (Routage direct) ---
+    // --- 2. CHAT PRIVÉ (Routage direct + Statut Occupé) ---
+// --- 2. CHAT PRIVÉ (Nettoyé) ---
     @MessageMapping("/chat.private")
     public void sendPrivateMessage(@Payload ChatMessage message, Principal principal) {
         String sender = principal.getName();
         String recipient = message.getRecipient();
         String time = getCurrentTime();
 
+        // On a SUPPRIMÉ toute la partie "if recipientStatus == BUSY..."
+
         message.setFrom(sender);
         message.setTime(time);
         message.setType(MessageType.CHAT);
 
-        // Envoi au destinataire (/user/pseudo/queue/private)
+        // Envoi au destinataire
         simpMessagingTemplate.convertAndSendToUser(recipient, "/queue/private", message);
 
-        // Envoi à l'expéditeur (pour qu'il voie ce qu'il a envoyé)
+        // Envoi à l'expéditeur
         simpMessagingTemplate.convertAndSendToUser(sender, "/queue/private", message);
     }
 

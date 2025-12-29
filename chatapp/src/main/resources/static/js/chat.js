@@ -1,18 +1,32 @@
 let stompClient = null;
-let selectedUser = null; // null = Public, sinon contient le pseudo du destinataire
+let selectedUser = null;
+let userStatuses = {};
+
+// Mémoire pour le regroupement
+let lastSender = null;     
+let lastTimeMinutes = -1;  
+let lastTypePrivate = false; 
+
+// Utilitaire temps
+function timeToMinutes(timeStr) {
+    if (!timeStr) return 0;
+    const parts = timeStr.split(':');
+    return parseInt(parts[0]) * 60 + parseInt(parts[1]);
+}
 
 document.addEventListener("DOMContentLoaded", function() {
     
-    // 1. Charger la liste des utilisateurs et leurs statuts
+    // 1. Charger Users
     fetch('/api/users')
         .then(response => response.json())
         .then(usersMap => {
             for (const [username, status] of Object.entries(usersMap)) {
+                userStatuses[username] = status;
                 addUserToSidebar(username, status);
             }
         });
 
-    // 2. Charger l'historique des messages
+    // 2. Charger Historique
     fetch('/api/history')
         .then(response => response.json())
         .then(messages => {
@@ -26,28 +40,17 @@ document.addEventListener("DOMContentLoaded", function() {
             });
         });
 
-    // 3. Connexion WebSocket
+    // 3. WebSocket
     const socket = new SockJS('/chat-websocket');
     stompClient = Stomp.over(socket);
 
     stompClient.connect({}, () => {
-        // Abonnement PUBLIC
-        stompClient.subscribe('/topic/public', (payload) => {
-            onMessageReceived(JSON.parse(payload.body));
-        });
-
-        // Abonnement PRIVÉ
-        stompClient.subscribe('/user/queue/private', (payload) => {
-            onPrivateMessageReceived(JSON.parse(payload.body));
-        });
-
-        // Dire qu'on est là
+        stompClient.subscribe('/topic/public', (payload) => onMessageReceived(JSON.parse(payload.body)));
+        stompClient.subscribe('/user/queue/private', (payload) => onPrivateMessageReceived(JSON.parse(payload.body)));
         stompClient.send("/app/chat.addUser", {}, JSON.stringify({}));
     });
 
-    // Gestion touche Entrée
-    const messageInput = document.getElementById("message");
-    messageInput.addEventListener("keydown", function(event) {
+    document.getElementById("message").addEventListener("keydown", function(event) {
         if (event.key === "Enter") {
             event.preventDefault();
             sendMessage();
@@ -55,48 +58,46 @@ document.addEventListener("DOMContentLoaded", function() {
     });
 });
 
-// --- ENVOI DE MESSAGES ---
 function sendMessage() {
-    const messageInput = document.getElementById("message");
-    const content = messageInput.value.trim();
+    const input = document.getElementById("message");
+    const content = input.value.trim();
 
     if (content && stompClient) {
         const chatMessage = { content: content, type: 'CHAT' };
-
         if (selectedUser) {
-            // Envoi PRIVÉ
             chatMessage.recipient = selectedUser;
             stompClient.send("/app/chat.private", {}, JSON.stringify(chatMessage));
         } else {
-            // Envoi PUBLIC
             stompClient.send("/app/sendMessage", {}, JSON.stringify(chatMessage));
         }
-        messageInput.value = '';
-        messageInput.focus();
+        input.value = '';
+        input.focus();
     }
 }
 
-// --- CHANGEMENT DE STATUT ---
 function sendStatusChange() {
     const selector = document.getElementById("status-select");
     const newStatus = selector.value;
+    // userStatuses["Moi"] = newStatus; // Optionnel
     if (stompClient) {
         const msg = { content: newStatus, type: 'STATUS' };
         stompClient.send("/app/chat.changeStatus", {}, JSON.stringify(msg));
     }
 }
 
-// --- RÉCEPTION ---
 function onMessageReceived(msg) {
     if (msg.type === 'JOIN') {
+        userStatuses[msg.from] = "ONLINE";
         addUserToSidebar(msg.from, "ONLINE");
         showSystemMessage(msg.from + " a rejoint le chat.");
     } 
     else if (msg.type === 'LEAVE') {
+        delete userStatuses[msg.from];
         removeUserFromSidebar(msg.from);
         showSystemMessage(msg.from + " a quitté le chat.");
     } 
     else if (msg.type === 'STATUS') {
+        userStatuses[msg.from] = msg.content;
         updateUserStatus(msg.from, msg.content);
     } 
     else {
@@ -108,71 +109,125 @@ function onPrivateMessageReceived(msg) {
     showChatMessage(msg, true);
 }
 
-// --- AFFICHAGE ---
+// --- FONCTION D'AFFICHAGE CORRIGÉE ---
 function showChatMessage(msg, isPrivate = false) {
     const box = document.getElementById("chat-box");
+    
+    // 1. Analyse du temps
+    const currentMinutes = timeToMinutes(msg.time);
+    const timeDiff = currentMinutes - lastTimeMinutes;
+
+    // 2. Conditions de regroupement
+    let shouldGroup = (msg.from === lastSender) 
+                   && (isPrivate === lastTypePrivate) 
+                   && (timeDiff >= 0 && timeDiff < 5);
+
+    // 3. TENTATIVE DE REGROUPEMENT
+    if (shouldGroup) {
+        const lastElement = box.lastElementChild;
+        
+        // On vérifie que le dernier élément est bien un groupe de message (et pas un message système)
+        // et qu'il contient bien une bulle.
+        if (lastElement && lastElement.classList.contains('message-group')) {
+            const bubble = lastElement.querySelector(".chat-bubble");
+            
+            if (bubble) {
+                // Création de la ligne supplémentaire
+                const newTextLine = document.createElement("div");
+                newTextLine.style.marginTop = "4px"; 
+                newTextLine.style.paddingTop = "4px";
+                newTextLine.style.borderTop = "1px solid rgba(0,0,0,0.05)"; 
+                newTextLine.innerText = msg.content;
+                
+                bubble.appendChild(newTextLine);
+                
+                // IMPORTANT : On met à jour la mémoire et on quitte la fonction ici !
+                lastTimeMinutes = currentMinutes; // On actualise l'heure du dernier msg
+                box.scrollTop = box.scrollHeight;
+                return; 
+            }
+        }
+    }
+
+    // --- NOUVEAU BLOC (Si on arrive ici, c'est qu'on n'a pas pu grouper) ---
+    
     const div = document.createElement("div");
+    div.className = "message-group"; // Classe importante pour le repérage
+    div.style.marginBottom = "15px";
 
-    // Avatar (DiceBear API)
     const avatarUrl = `https://api.dicebear.com/7.x/bottts/svg?seed=${msg.from}`;
+    const bgColor = isPrivate ? '#ffefc1' : '#f1f1f1';
+    const borderColor = isPrivate ? '#e1c563' : '#ddd'; // '#ddd' ou transparent
+    const lockIcon = isPrivate ? '🔒 ' : '';
 
-    // Construction HTML
-    let htmlContent = `
-        <div style="display: flex; align-items: flex-start; margin-bottom: 10px;">
-            <img src="${avatarUrl}" alt="Avatar" style="width: 35px; height: 35px; border-radius: 50%; margin-right: 10px; border: 2px solid #ddd;">
-            <div>
-                <div style="font-size: 0.8em; color: #555; margin-bottom: 2px;">
+    div.innerHTML = `
+        <div style="display: flex; align-items: flex-start;">
+            <img src="${avatarUrl}" alt="Avatar" style="width: 40px; height: 40px; border-radius: 50%; margin-right: 10px; border: 2px solid #eee;">
+            
+            <div style="max-width: 80%;">
+                <div style="font-size: 0.8em; color: #555; margin-bottom: 2px; margin-left: 2px;">
                     <b>${msg.from}</b> <span style="color: #aaa;">[${msg.time}]</span>
                 </div>
-                <div style="background-color: ${isPrivate ? '#ffefc1' : '#f1f1f1'}; 
-                            border: 1px solid ${isPrivate ? '#e1c563' : '#ddd'}; 
-                            padding: 8px 12px; 
-                            border-radius: 10px; 
-                            display: inline-block;">
-                    ${isPrivate ? '🔒 ' : ''}${msg.content}
+                
+                <div class="chat-bubble" style="background-color: ${bgColor}; 
+                            border: 1px solid ${borderColor}; 
+                            padding: 10px 15px; 
+                            border-radius: 12px; 
+                            border-top-left-radius: 2px;
+                            position: relative;">
+                    ${lockIcon}${msg.content}
                 </div>
             </div>
         </div>
     `;
-
-    div.innerHTML = htmlContent;
+    
     box.appendChild(div);
+
+    // Mise à jour de la mémoire
+    lastSender = msg.from;
+    lastTimeMinutes = currentMinutes;
+    lastTypePrivate = isPrivate;
+
     box.scrollTop = box.scrollHeight;
 }
 
 function showSystemMessage(text) {
     const box = document.getElementById("chat-box");
+    
+    // On réinitialise le "dernier envoyeur" pour empêcher de coller un futur message à ce message système
+    lastSender = null; 
+
     const div = document.createElement("div");
     div.style.color = "#888"; 
     div.style.fontStyle = "italic"; 
-    div.style.fontSize = "0.9em";
-    div.style.marginBottom = "5px";
+    div.style.fontSize = "0.85em";
+    div.style.marginBottom = "10px";
+    div.style.textAlign = "center";
     div.innerText = text;
+    
     box.appendChild(div);
     box.scrollTop = box.scrollHeight;
 }
 
-// --- GESTION SIDEBAR (Liste connectés) ---
-
+// --- GESTION SIDEBAR ---
 function getStatusColor(status) {
-    if (status === 'BUSY') return '#e74c3c'; // Rouge
-    if (status === 'AWAY') return '#f39c12'; // Orange
-    return '#2ecc71'; // Vert (ONLINE)
+    if (status === 'BUSY') return '#e74c3c';
+    if (status === 'AWAY') return '#f39c12';
+    return '#2ecc71';
 }
 
 function addUserToSidebar(username, status = 'ONLINE') {
     const list = document.getElementById("users-list");
-    // Évite les doublons
     if (!document.getElementById("user-" + username)) {
         const li = document.createElement("li");
         li.id = "user-" + username;
         li.style.cursor = "pointer";
         li.style.display = "flex";
         li.style.alignItems = "center";
-        li.style.padding = "5px";
+        li.style.padding = "8px";
         li.style.borderRadius = "4px";
+        li.style.marginBottom = "2px";
         
-        // Pastille de couleur
         const dot = document.createElement("span");
         dot.id = "status-dot-" + username;
         dot.style.height = "10px";
@@ -183,45 +238,41 @@ function addUserToSidebar(username, status = 'ONLINE') {
         
         const text = document.createElement("span");
         text.innerText = username;
+        text.style.color = "white";
 
         li.appendChild(dot);
         li.appendChild(text);
 
-        // Clic sur l'utilisateur
         li.onclick = function() {
-            // Si on clique sur celui déjà sélectionné -> On désélectionne
             if (selectedUser === username) {
                 selectedUser = null;
                 li.style.backgroundColor = "transparent";
                 li.style.fontWeight = "normal";
                 document.getElementById("chat-header").innerText = "Chat Général";
             } else {
-                // Reset des autres
                 document.querySelectorAll("#users-list li").forEach(el => {
                     el.style.backgroundColor = "transparent";
                     el.style.fontWeight = "normal";
                 });
-                // Sélection du nouveau
                 selectedUser = username;
                 li.style.backgroundColor = "rgba(255, 255, 255, 0.1)";
                 li.style.fontWeight = "bold";
                 document.getElementById("chat-header").innerText = "🔒 Privé avec " + username;
+
+                if (userStatuses[username] === 'BUSY') {
+                    showSystemMessage("⚠️ Attention : " + username + " est occupé(e).");
+                }
             }
         };
-
         list.appendChild(li);
     } else {
-        // Si l'utilisateur existe déjà (reconnexion), on met juste à jour son statut
         updateUserStatus(username, status);
     }
 }
 
 function removeUserFromSidebar(username) {
     const li = document.getElementById("user-" + username);
-    if (li) {
-        li.remove();
-    }
-    // Si la personne à qui on parlait part
+    if (li) li.remove();
     if (selectedUser === username) {
         selectedUser = null;
         document.getElementById("chat-header").innerText = "Chat Général";
@@ -230,7 +281,6 @@ function removeUserFromSidebar(username) {
 
 function updateUserStatus(username, newStatus) {
     const dot = document.getElementById("status-dot-" + username);
-    if (dot) {
-        dot.style.backgroundColor = getStatusColor(newStatus);
-    }
+    if (dot) dot.style.backgroundColor = getStatusColor(newStatus);
+    userStatuses[username] = newStatus;
 }

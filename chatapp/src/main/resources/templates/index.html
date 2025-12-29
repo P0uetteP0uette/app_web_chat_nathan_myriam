@@ -3,49 +3,56 @@
 <head>
     <meta charset="UTF-8">
     <title>Chat App</title>
-    <link rel="stylesheet" href="css/style.css">
+    <link rel="stylesheet" href="css/main.css">
 </head>
 <body>
 
-    <div id="chat-container">
+<div id="chat-page">
+    
+    <div id="sidebar">
+        <h3>👥 Utilisateurs</h3>
         
-        <div id="sidebar">
-            <h3>Utilisateurs</h3>
-            <ul id="users-list">
-                </ul>
-            <hr>
-            <div id="current-user">
-                Moi : <b th:text="${username}">Invité</b>
-                
-                <select id="status-select" onchange="sendStatusChange()" style="margin-top: 5px; width: 100%; padding: 5px; border-radius: 5px;">
-                    <option value="ONLINE">🟢 En ligne</option>
-                    <option value="BUSY">🔴 Occupé</option>
-                    <option value="AWAY">🟠 Absent</option>
-                </select>
-            </div>
-            <form action="/logout" method="post" style="margin-top: 10px;">
-                <button type="submit" class="logout-btn">Déconnexion</button>
+        <div id="current-user">
+            Moi : <b th:text="${username}">Invité</b>
+            <select id="status-select" onchange="sendStatusChange()">
+                <option value="ONLINE">En ligne</option>
+                <option value="BUSY">Occupé</option>
+                <option value="AWAY">Absent</option>
+            </select>
+        </div>
+
+        <ul id="users-list">
+            </ul>
+        
+        <div style="margin-top: auto; padding-top: 20px;">
+            <form th:action="@{/logout}" method="post">
+                <button type="submit" style="width: 100%; background: #e74c3c; padding: 10px; border:none; color:white; border-radius:5px; cursor:pointer;">Déconnexion</button>
             </form>
         </div>
+    </div>
 
-        <div id="chat-page">
-        <div id="chat-header-container" style="border-bottom: 1px solid #ccc; padding-bottom: 10px; margin-bottom: 10px;">
+    <div id="chat-container">
+        
+        <div id="chat-header-container">
             <h2 id="chat-header">Chat Général</h2>
         </div>
-            
-            <div id="chat-box"></div>
 
-            <div id="message-controls">
-                <input id="message" type="text" placeholder="Votre message...">
-                <button onclick="sendMessage()">Envoyer</button>
+        <div id="chat-box">
+            </div>
+
+        <div id="message-input-area">
+            <div class="input-wrapper">
+                <input type="text" id="message" placeholder="Envoyer un message..." autocomplete="off" />
+                <button id="send-btn" onclick="sendMessage()">➤</button>
             </div>
         </div>
 
     </div>
+</div>
 
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/sockjs-client/1.6.1/sockjs.min.js"></script>
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/stomp.js/2.3.3/stomp.min.js"></script>
-    <script src="js/chat.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/sockjs-client/1.5.1/sockjs.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/stomp.js/2.3.3/stomp.min.js"></script>
+<script src="/js/chat.js"></script>
 
 </body>
 </html>
