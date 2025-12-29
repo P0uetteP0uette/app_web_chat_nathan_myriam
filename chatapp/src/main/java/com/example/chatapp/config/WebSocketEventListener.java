@@ -9,12 +9,24 @@ import org.springframework.messaging.simp.SimpMessageSendingOperations;
 import org.springframework.stereotype.Component;
 import org.springframework.web.socket.messaging.SessionDisconnectEvent;
 
+/**
+ * Écouteur d'événements pour les connexions WebSocket.
+ * Cette classe permet de détecter quand un utilisateur se déconnecte (fermeture d'onglet, perte de réseau)
+ * afin de mettre à jour l'état de l'application.
+ */
 @Component
 public class WebSocketEventListener {
 
     @Autowired
     private SimpMessageSendingOperations messagingTemplate;
 
+    /**
+     * Gère l'événement de déconnexion d'une session WebSocket.
+     * Lorsqu'un utilisateur quitte, cette méthode le retire de la liste des utilisateurs actifs
+     * et diffuse un message public de type "LEAVE" pour avertir les autres clients.
+     *
+     * @param event L'événement de déconnexion contenant les informations de la session utilisateur.
+     */
     @EventListener
     public void handleWebSocketDisconnectListener(SessionDisconnectEvent event) {
 

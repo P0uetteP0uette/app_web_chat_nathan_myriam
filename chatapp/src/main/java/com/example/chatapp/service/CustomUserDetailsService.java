@@ -10,12 +10,24 @@ import org.springframework.stereotype.Service;
 
 import java.util.Collections;
 
+/**
+ * Service personnalisé pour l'authentification Spring Security.
+ * Fait le lien entre les utilisateurs stockés en base de données et le système de sécurité de Spring.
+ */
 @Service
 public class CustomUserDetailsService implements UserDetailsService {
 
     @Autowired
     private UserRepository userRepository;
 
+    /**
+     * Charge les détails d'un utilisateur à partir de son nom d'utilisateur.
+     * Cette méthode est appelée automatiquement par Spring Security lors de la tentative de connexion.
+     *
+     * @param username Le pseudo de l'utilisateur qui tente de se connecter.
+     * @return Un objet UserDetails contenant les infos de l'utilisateur (pseudo, mot de passe, droits).
+     * @throws UsernameNotFoundException Si l'utilisateur n'existe pas en base de données.
+     */
     @Override
     public UserDetails loadUserByUsername(String username) throws UsernameNotFoundException {
         User user = userRepository.findByUsername(username)

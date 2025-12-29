@@ -23,10 +23,18 @@ import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
 import org.springframework.ui.Model;
 
+/**
+ * Contrôleur principal de l'application de Chat.
+ * Gère les interactions WebSocket (STOMP) pour la messagerie temps réel
+ * ainsi que les endpoints REST et l'affichage des vues HTML.
+ */
 @Controller
 public class ChatController {
 
-    // Stocke : "Pseudo" -> "Statut" (ex: Toto -> ONLINE)
+    /**
+     * Stocke les statuts des utilisateurs connectés en mémoire vive.
+     * Structure : "Pseudo" -> "Statut" (ex: "Toto" -> "ONLINE").
+     */
     private static final Map<String, String> userStatuses = new ConcurrentHashMap<>();
 
     @Autowired
@@ -35,18 +43,30 @@ public class ChatController {
     @Autowired
     private SimpMessagingTemplate simpMessagingTemplate;
 
-
+    /**
+     * Affiche la page d'accueil de l'application.
+     * Injecte le nom de l'utilisateur connecté dans le modèle pour utilisation par le client (JavaScript).
+     *
+     * @param model Le modèle Thymeleaf pour passer des données à la vue.
+     * @param principal L'objet représentant l'utilisateur connecté via Spring Security.
+     * @return Le nom de la vue "index".
+     */
     @GetMapping("/")
     public String index(Model model, Principal principal) {
-        // C'est cette ligne qui manquait !
-        // On injecte le nom de celui qui est connecté pour que le HTML puisse le lire
         if (principal != null) {
             model.addAttribute("username", principal.getName());
         }
         return "index";
     }
 
-    // --- 1. CHAT PUBLIC (Sauvegardé en BDD) ---
+    /**
+     * Gère l'envoi de messages publics.
+     * Le message est sauvegardé en base de données puis diffusé à tous les abonnés.
+     *
+     * @param chatMessage Le message reçu du client.
+     * @param principal L'utilisateur expéditeur.
+     * @return Le message complété à diffuser sur /topic/public.
+     */
     @MessageMapping("/sendMessage")
     @SendTo("/topic/public")
     public ChatMessage broadcast(ChatMessage chatMessage, Principal principal) {
@@ -66,15 +86,18 @@ public class ChatController {
         return chatMessage;
     }
 
-    // --- 2. CHAT PRIVÉ (Routage direct + Statut Occupé) ---
-// --- 2. CHAT PRIVÉ (Nettoyé) ---
+    /**
+     * Gère l'envoi de messages privés (1-to-1).
+     * Le message est envoyé spécifiquement au destinataire et renvoyé à l'expéditeur pour confirmation visuelle.
+     *
+     * @param message Le message contenant le contenu et le destinataire.
+     * @param principal L'utilisateur expéditeur.
+     */
     @MessageMapping("/chat.private")
     public void sendPrivateMessage(@Payload ChatMessage message, Principal principal) {
         String sender = principal.getName();
         String recipient = message.getRecipient();
         String time = getCurrentTime();
-
-        // On a SUPPRIMÉ toute la partie "if recipientStatus == BUSY..."
 
         message.setFrom(sender);
         message.setTime(time);
@@ -83,11 +106,19 @@ public class ChatController {
         // Envoi au destinataire
         simpMessagingTemplate.convertAndSendToUser(recipient, "/queue/private", message);
 
-        // Envoi à l'expéditeur
+        // Envoi à l'expéditeur (pour affichage dans sa propre fenêtre)
         simpMessagingTemplate.convertAndSendToUser(sender, "/queue/private", message);
     }
 
-    // --- 3. JOIN (Connexion) ---
+    /**
+     * Gère l'arrivée d'un nouvel utilisateur dans le chat.
+     * Définit son statut par défaut à "ONLINE" et diffuse l'événement.
+     *
+     * @param message Le message de connexion.
+     * @param headerAccessor Accesseur aux en-têtes WebSocket.
+     * @param principal L'utilisateur qui se connecte.
+     * @return Le message de type JOIN à diffuser sur /topic/public.
+     */
     @MessageMapping("/chat.addUser")
     @SendTo("/topic/public")
     public ChatMessage addUser(ChatMessage message, SimpMessageHeaderAccessor headerAccessor, Principal principal) {
@@ -98,13 +129,19 @@ public class ChatController {
         
         message.setType(MessageType.JOIN);
         message.setFrom(username);
-        message.setContent("ONLINE"); // On transporte le statut
+        message.setContent("ONLINE"); // On transporte le statut initial
         message.setTime(getCurrentTime());
         
         return message;
     }
 
-    // --- 4. CHANGEMENT DE STATUT ---
+    /**
+     * Permet à un utilisateur de changer manuellement son statut (Occupé, Absent, En ligne).
+     *
+     * @param message Le message contenant le nouveau statut dans le champ 'content'.
+     * @param principal L'utilisateur qui change de statut.
+     * @return Le message de type STATUS à diffuser pour mettre à jour les interfaces des autres clients.
+     */
     @MessageMapping("/chat.changeStatus")
     @SendTo("/topic/public")
     public ChatMessage changeStatus(ChatMessage message, Principal principal) {
@@ -115,31 +152,52 @@ public class ChatController {
         
         message.setType(MessageType.STATUS);
         message.setFrom(username);
-        // Le content est déjà le nouveau statut
+        
         return message;
     }
 
-    // --- API : Récupérer les utilisateurs et leurs statuts ---
+    /**
+     * API REST pour récupérer la liste des utilisateurs connectés et leurs statuts actuels.
+     * Utilisé par le client JavaScript au chargement de la page pour initialiser la barre latérale.
+     *
+     * @return Une map contenant les pseudos et les statuts.
+     */
     @GetMapping("/api/users")
     @ResponseBody
     public Map<String, String> getOnlineUsers() {
         return userStatuses;
     }
 
-    // --- API : Récupérer l'historique (50 derniers) ---
+    /**
+     * API REST pour récupérer l'historique des derniers messages.
+     * Renvoie les 50 derniers messages stockés en base de données.
+     *
+     * @return Une liste d'objets Message triée chronologiquement.
+     */
     @GetMapping("/api/history")
     @ResponseBody
     public List<Message> getChatHistory() {
         List<Message> messages = messageRepository.findTop50ByOrderByIdDesc();
-        Collections.reverse(messages); // Remet dans l'ordre chronologique
+        Collections.reverse(messages); // Remet dans l'ordre chronologique pour l'affichage
         return messages;
     }
 
-    // Utilitaires
+    // --- Méthodes utilitaires ---
+
+    /**
+     * Obtient l'heure actuelle formatée.
+     * @return L'heure sous format "HH:mm".
+     */
     private String getCurrentTime() {
         return LocalTime.now().format(DateTimeFormatter.ofPattern("HH:mm"));
     }
 
+    /**
+     * Supprime un utilisateur de la liste des connectés.
+     * Méthode statique appelée par le WebSocketEventListener lors d'une déconnexion.
+     *
+     * @param username Le pseudo de l'utilisateur à retirer.
+     */
     public static void removeUser(String username) {
         userStatuses.remove(username);
     }
