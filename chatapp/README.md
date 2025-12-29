@@ -106,38 +106,51 @@ Cette seconde itération fait évoluer le MVP vers une application robuste en in
 ## ✨ Fonctionnalités implémentées
 
 ### 🔐 Authentification & Sécurité
-- Inscription et Connexion des utilisateurs (cryptage BCrypt).
-- Protection des routes (impossible d'accéder au chat sans être connecté).
-- Redirection automatique après login/logout.
+- **Gestion des utilisateurs** : Inscription et Connexion.
+- **Sécurité des mots de passe** : Hashing automatique avec **BCrypt** (Spring Security).
+- **Protection XSS** : Les messages sont nettoyés côté client (JavaScript) avant d'être affichés pour empêcher l'injection de scripts malveillants (ex: `<script>alert('Hack')</script>`).
+- **Protection des routes** : Redirection automatique vers le login si l'utilisateur n'est pas connecté.
+
+### 🧪 Qualité & Tests
+- **Tests Unitaires** : Intégration de **JUnit 5**.
+- **Couverture** : Test de l'entité `Message` (`MessageTest.java`) pour vérifier la cohérence des données (constructeurs, getters, setters) avant persistance.
 
 ### 💬 Chat Temps Réel
-- **Chat Public** : Diffusion des messages à tous les utilisateurs connectés.
-- **Chat Privé** : Messagerie 1-to-1 sécurisée (seul le destinataire reçoit le message).
-- **Indicateurs visuels** : Cadenas 🔒 et fond jaune pour les messages privés.
+- **Chat Public** : Diffusion instantanée via WebSocket.
+- **Chat Privé** : Messagerie 1-to-1 sécurisée (routage `convertAndSendToUser`).
+- **Indicateurs visuels** : Cadenas 🔒 pour les messages privés.
 
-### 💾 Persistance des données (MySQL)
-- Sauvegarde de tous les messages publics en base de données.
-- Chargement automatique de l'historique (50 derniers messages) à la connexion.
+### 💾 Persistance des données
+- Base de données **MySQL**.
+- Sauvegarde automatique de l'historique des conversations.
+- Chargement des 50 derniers messages à la connexion.
 
 ### 👤 Expérience Utilisateur (UX)
-- **Liste des connectés** : Mise à jour en temps réel (Connexion/Déconnexion).
-- **Statuts** : Gestion des états (🟢 En ligne, 🔴 Occupé, 🟠 Absent).
-- **Tri intelligent** : L'utilisateur courant ("Moi") apparaît toujours en haut de la liste, en jaune et gras.
-- **Avatars** : Génération automatique d'avatars via l'API DiceBear.
-- **Regroupement** : Les messages successifs d'un même utilisateur sont groupés visuellement (style Discord).
+- **Barre latérale dynamique** : Liste des utilisateurs mise à jour en temps réel.
+- **Mise en avant** : L'utilisateur courant ("Moi") apparaît en haut de la liste, en **gras et jaune**.
+- **Gestion des Statuts** : En ligne 🟢, Occupé 🔴, Absent 🟠.
+- **Design** : Interface responsive, avatars automatiques (DiceBear), et regroupement des messages successifs.
 
+---
 
 ## 🛠️ Stack Technique
 - **Backend** : Java 17, Spring Boot 3, Spring Security, Spring Data JPA.
 - **Frontend** : Thymeleaf, JavaScript (Vanilla), SockJS, Stomp.js.
 - **Base de données** : MySQL.
+- **Tests** : JUnit 5.
 
 ## 🚀 Comment lancer le projet
 
 1. Créer une base de données MySQL nommée `chatapp_db`.
-2. Configurer les accès dans `src/main/resources/application.properties`.
-3. Lancer l'application : `mvn spring-boot:run`.
-4. Accéder à : `http://localhost:8080`.
+2. Configurer les accès (`root` / password) dans `src/main/resources/application.properties`.
+3. Lancer l'application :
+   ```bash
+   mvn spring-boot:run
+   ```
+4. Pour lancer les tests unitaires :
+    ```bash
+    mvn test
+    ```
+5. Accéder à l'application : `http://localhost:8080`
 
-Ainsi vous pourrez accéder à l'application.
-Si une autre personne souhaite accéder aussi à l'application, le plus simple est que vous soyez connecté sur le meme réseau. Ensuite il lui suffira de taper dans l'url : http://*votre@IP*:8080
+Si une autre personne souhaite accéder aussi à l'application, le plus simple est que vous soyez connecté sur le meme réseau. Ensuite il lui suffira de taper dans l'url `http://*votre@IP*:8080`
