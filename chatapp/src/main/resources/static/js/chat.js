@@ -113,53 +113,49 @@ function onPrivateMessageReceived(msg) {
 function showChatMessage(msg, isPrivate = false) {
     const box = document.getElementById("chat-box");
     
-    // 1. Analyse du temps
+    // --- SÉCURITÉ XSS ICI ---
+    // On nettoie le message avant de faire quoi que ce soit
+    const safeContent = escapeHtml(msg.content);
+    // ------------------------
+
     const currentMinutes = timeToMinutes(msg.time);
     const timeDiff = currentMinutes - lastTimeMinutes;
 
-    // 2. Conditions de regroupement
     let shouldGroup = (msg.from === lastSender) 
                    && (isPrivate === lastTypePrivate) 
                    && (timeDiff >= 0 && timeDiff < 5);
 
-    // 3. TENTATIVE DE REGROUPEMENT
     if (shouldGroup) {
         const lastElement = box.lastElementChild;
-        
-        // On vérifie que le dernier élément est bien un groupe de message (et pas un message système)
-        // et qu'il contient bien une bulle.
         if (lastElement && lastElement.classList.contains('message-group')) {
             const bubble = lastElement.querySelector(".chat-bubble");
-            
             if (bubble) {
-                // Création de la ligne supplémentaire
                 const newTextLine = document.createElement("div");
                 newTextLine.style.marginTop = "4px"; 
                 newTextLine.style.paddingTop = "4px";
                 newTextLine.style.borderTop = "1px solid rgba(0,0,0,0.05)"; 
-                newTextLine.innerText = msg.content;
+                
+                // IMPORTANT : On utilise le contenu sécurisé
+                newTextLine.innerHTML = safeContent; 
                 
                 bubble.appendChild(newTextLine);
-                
-                // IMPORTANT : On met à jour la mémoire et on quitte la fonction ici !
-                lastTimeMinutes = currentMinutes; // On actualise l'heure du dernier msg
+                lastTimeMinutes = currentMinutes; 
                 box.scrollTop = box.scrollHeight;
                 return; 
             }
         }
     }
 
-    // --- NOUVEAU BLOC (Si on arrive ici, c'est qu'on n'a pas pu grouper) ---
-    
     const div = document.createElement("div");
-    div.className = "message-group"; // Classe importante pour le repérage
+    div.className = "message-group";
     div.style.marginBottom = "15px";
 
     const avatarUrl = `https://api.dicebear.com/7.x/bottts/svg?seed=${msg.from}`;
     const bgColor = isPrivate ? '#ffefc1' : '#f1f1f1';
-    const borderColor = isPrivate ? '#e1c563' : '#ddd'; // '#ddd' ou transparent
+    const borderColor = isPrivate ? '#e1c563' : '#ddd';
     const lockIcon = isPrivate ? '🔒 ' : '';
 
+    // IMPORTANT : On injecte 'safeContent' au lieu de 'msg.content'
     div.innerHTML = `
         <div style="display: flex; align-items: flex-start;">
             <img src="${avatarUrl}" alt="Avatar" style="width: 40px; height: 40px; border-radius: 50%; margin-right: 10px; border: 2px solid #eee;">
@@ -174,8 +170,9 @@ function showChatMessage(msg, isPrivate = false) {
                             padding: 10px 15px; 
                             border-radius: 12px; 
                             border-top-left-radius: 2px;
-                            position: relative;">
-                    ${lockIcon}${msg.content}
+                            position: relative;
+                            word-wrap: break-word;">
+                    ${lockIcon}${safeContent}
                 </div>
             </div>
         </div>
@@ -183,7 +180,6 @@ function showChatMessage(msg, isPrivate = false) {
     
     box.appendChild(div);
 
-    // Mise à jour de la mémoire
     lastSender = msg.from;
     lastTimeMinutes = currentMinutes;
     lastTypePrivate = isPrivate;
@@ -302,4 +298,16 @@ function updateUserStatus(username, newStatus) {
     const dot = document.getElementById("status-dot-" + username);
     if (dot) dot.style.backgroundColor = getStatusColor(newStatus);
     userStatuses[username] = newStatus;
+}
+
+// Fonction de sécurité pour éviter les failles XSS
+// Elle transforme les caractères spéciaux en texte inoffensif
+function escapeHtml(text) {
+    if (!text) return text;
+    return text
+        .replace(/&/g, "&amp;")
+        .replace(/</g, "&lt;")
+        .replace(/>/g, "&gt;")
+        .replace(/"/g, "&quot;")
+        .replace(/'/g, "&#039;");
 }
