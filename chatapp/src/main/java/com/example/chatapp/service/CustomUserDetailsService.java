@@ -33,11 +33,15 @@ public class CustomUserDetailsService implements UserDetailsService {
         User user = userRepository.findByUsername(username)
                 .orElseThrow(() -> new UsernameNotFoundException("Utilisateur non trouvé : " + username));
 
-        // On convertit notre User en "UserDetails" que Spring comprend
+        // On passe "user.isEnabled()" à Spring Security
         return new org.springframework.security.core.userdetails.User(
                 user.getUsername(),
                 user.getPassword(),
-                Collections.emptyList() // Pas de rôles spécifiques pour l'instant
+                user.isEnabled(), // <--- C'est ICI que la magie opère (true/false)
+                true, // accountNonExpired (on s'en fiche pour l'instant, on met true)
+                true, // credentialsNonExpired
+                true, // accountNonLocked
+                Collections.emptyList()
         );
     }
 }

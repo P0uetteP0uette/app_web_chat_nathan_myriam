@@ -23,6 +23,9 @@ public class User {
     @Column(nullable = false)
     private String password;
 
+    @Column(name = "enabled")
+    private boolean enabled = false; // Par défaut, le compte n'est pas activé
+
     /**
      * Constructeur vide requis par JPA.
      */
@@ -54,4 +57,7 @@ public class User {
     public String getPassword() { return password; }
     /** @param password Le nouveau mot de passe. */
     public void setPassword(String password) { this.password = password; }
+
+    public boolean isEnabled() { return enabled; }
+    public void setEnabled(boolean enabled) { this.enabled = enabled; }
 }

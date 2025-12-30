@@ -24,9 +24,16 @@
         <ul id="users-list">
             </ul>
         
-        <div style="margin-top: auto; padding-top: 20px;">
+        <div style="margin-top: auto; padding-top: 20px; border-top: 1px solid #ddd;">
+            
+            <a href="/find-friends" style="display: block; width: 100%; background: #3498db; color: white; padding: 10px; border-radius: 5px; text-decoration: none; text-align: center; font-weight: bold; margin-bottom: 10px; transition: background 0.3s;">
+                <i class="bi bi-person-plus-fill"></i> Trouver des amis
+            </a>
+
             <form th:action="@{/logout}" method="post">
-                <button type="submit" style="width: 100%; background: #e74c3c; padding: 10px; border:none; color:white; border-radius:5px; cursor:pointer;">Déconnexion</button>
+                <button type="submit" style="width: 100%; background: #e74c3c; padding: 10px; border:none; color:white; border-radius:5px; cursor:pointer; font-weight: bold;">
+                    Déconnexion
+                </button>
             </form>
         </div>
     </div>

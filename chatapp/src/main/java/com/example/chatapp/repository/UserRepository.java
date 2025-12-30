@@ -2,6 +2,8 @@ package com.example.chatapp.repository;
 
 import com.example.chatapp.model.User;
 import org.springframework.data.jpa.repository.JpaRepository;
+
+import java.util.List;
 import java.util.Optional;
 
 /**
@@ -17,4 +19,5 @@ public interface UserRepository extends JpaRepository<User, Long> {
      * @return Un Optional contenant l'utilisateur s'il est trouvé, ou vide sinon.
      */
     Optional<User> findByUsername(String username);
+    List<User> findByUsernameContainingIgnoreCaseAndUsernameNot(String keyword, String myUsername);
 }

@@ -5,64 +5,51 @@ import org.springframework.context.annotation.Configuration;
 import org.springframework.security.authentication.AuthenticationManager;
 import org.springframework.security.config.annotation.authentication.configuration.AuthenticationConfiguration;
 import org.springframework.security.config.annotation.web.builders.HttpSecurity;
+import org.springframework.security.config.annotation.web.configurers.AbstractHttpConfigurer; // <--- Import ajouté
 import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.security.web.SecurityFilterChain;
 
-/**
- * Configuration principale de la sécurité de l'application.
- * Gère les permissions d'accès, le formulaire de connexion et le cryptage.
- */
 @Configuration
 public class SecurityConfig {
 
-    /**
-     * Configure la chaîne de filtres de sécurité HTTP.
-     * Définit l'accès public pour l'inscription, exige l'authentification pour le reste
-     * et configure le formulaire de login personnalisé.
-     *
-     * @param http L'objet de configuration de la sécurité web.
-     * @return La chaîne de filtres de sécurité construite.
-     * @throws Exception En cas d'erreur lors de la configuration.
-     */
     @Bean
-    public SecurityFilterChain securityFilterChain(HttpSecurity http) throws Exception {
+    public SecurityFilterChain filterChain(HttpSecurity http) throws Exception {
         http
-            .csrf(csrf -> csrf.disable()) 
-            .authorizeHttpRequests((requests) -> requests
-                .requestMatchers("/register", "/css/**", "/js/**").permitAll()
+            // 1. ON DÉSACTIVE LE CSRF POUR DÉBLOQUER LES FORMULAIRES POST
+            .csrf(AbstractHttpConfigurer::disable) 
+
+            // 2. Les autorisations
+            .authorizeHttpRequests(auth -> auth
+                .requestMatchers("/register", "/login", "/css/**", "/js/**", "/activate").permitAll()
                 .anyRequest().authenticated()
             )
-            .formLogin((form) -> form
+            // 3. Le Login
+            .formLogin(form -> form
                 .loginPage("/login")
                 .defaultSuccessUrl("/", true)
                 .permitAll()
             )
-            .logout((logout) -> logout.permitAll());
+            // 4. Le Logout
+            .logout(logout -> logout
+                .logoutUrl("/logout")
+                .logoutSuccessUrl("/login?logout")
+                .permitAll()
+            );
 
         return http.build();
     }
 
-    /**
-     * Définit le bean responsable du hachage des mots de passe.
-     * Utilise l'algorithme BCrypt.
-     *
-     * @return L'instance de l'encodeur de mot de passe.
-     */
     @Bean
     public PasswordEncoder passwordEncoder() {
         return new BCryptPasswordEncoder();
     }
-    
-    /**
-     * Expose le gestionnaire d'authentification pour Spring Security.
-     *
-     * @param authenticationConfiguration La configuration d'authentification injectée.
-     * @return Le gestionnaire d'authentification.
-     * @throws Exception Si le gestionnaire ne peut pas être récupéré.
-     */
+
+// N'oublie pas d'importer ça en haut du fichier :
+    // import org.springframework.security.config.annotation.authentication.configuration.AuthenticationConfiguration;
+
     @Bean
-    public AuthenticationManager authenticationManager(AuthenticationConfiguration authenticationConfiguration) throws Exception {
-        return authenticationConfiguration.getAuthenticationManager();
+    public AuthenticationManager authenticationManager(AuthenticationConfiguration configuration) throws Exception {
+        return configuration.getAuthenticationManager();
     }
 }
