@@ -1,8 +1,8 @@
 /* =========================================
-   STYLE DE LA POPUP (LE BON STYLE)
+   STYLE DE LA POPUP DE CHAT
    ========================================= */
 
-#popup-window { /* ID UNIQUE pour la fenêtre */
+#popup-window {
     display: none;
     position: fixed;
     bottom: 0; right: 20px; width: 320px;
@@ -11,26 +11,67 @@
     border-top-left-radius: 10px; border-top-right-radius: 10px;
     box-shadow: 0 4px 15px rgba(0,0,0,0.2);
     z-index: 9999;
-    font-family: system-ui, -apple-system, sans-serif;
+    font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
 }
 
+/* EN-TÊTE */
 .chat-header {
     background-color: #0d6efd; color: white; padding: 10px 15px;
     border-top-left-radius: 10px; border-top-right-radius: 10px;
     cursor: pointer; display: flex; justify-content: space-between; align-items: center; font-weight: bold;
 }
 
-/* Attention : on garde la classe chat-body pour le style, mais on utilisera un ID unique en HTML */
+/* CORPS */
 .chat-body {
     height: 350px; overflow-y: auto; padding: 15px;
     background-color: #f8f9fa; display: flex; flex-direction: column;
 }
 
+/* =========================================
+   ZONE DE SAISIE (FOOTER) - STYLE FORCÉ
+   C'est ici qu'on règle ton problème visuel
+   ========================================= */
+
 .chat-footer {
-    padding: 10px; border-top: 1px solid #eee; background: white; display: flex; gap: 5px;
+    padding: 10px; 
+    border-top: 1px solid #eee; 
+    background: white; 
+    display: flex; 
+    gap: 5px;
+    align-items: center;
 }
 
-/* --- MESSAGES (Ton style préféré) --- */
+/* On force le style du champ texte pour qu'il soit beau partout */
+.chat-footer input {
+    flex-grow: 1;             /* Prend toute la largeur */
+    padding: 8px 12px;        /* Espace intérieur */
+    border: 1px solid #ccc;   /* Bordure fine grise */
+    border-radius: 20px;      /* Arrondi (Pilule) */
+    outline: none;            /* Enlève le cadre bleu moche au clic */
+    font-size: 14px;
+    background-color: #f1f1f1;
+}
+
+/* On force le style du bouton pour qu'il soit bleu partout */
+.chat-footer button {
+    background-color: #0d6efd;
+    color: white;
+    border: none;
+    padding: 8px 12px;
+    border-radius: 20px;      /* Arrondi */
+    cursor: pointer;
+    font-weight: bold;
+    font-size: 14px;
+}
+
+.chat-footer button:hover {
+    background-color: #0b5ed7; /* Un peu plus foncé au survol */
+}
+
+/* =========================================
+   MESSAGES (Ton style préféré)
+   ========================================= */
+
 .msg-container {
     display: flex; flex-direction: column;
     margin-bottom: 2px; max-width: 85%; position: relative;
@@ -47,7 +88,6 @@
 .message-sent .message-bubble { background-color: #0d6efd; color: white; border-bottom-right-radius: 2px; }
 .message-received .message-bubble { background-color: #e9ecef; color: black; border-bottom-left-radius: 2px; }
 
-/* L'heure Accordéon */
 .msg-time {
     font-size: 0.7rem; color: #888; padding: 0 5px;
     opacity: 0; max-height: 0; margin-bottom: 0; overflow: hidden;
