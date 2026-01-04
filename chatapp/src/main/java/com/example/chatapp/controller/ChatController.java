@@ -56,6 +56,18 @@ public class ChatController {
         if (principal != null) {
             model.addAttribute("username", principal.getName());
         }
+
+        // --- AJOUT : CHARGER L'HISTORIQUE PUBLIC ---
+        // On récupère les 50 derniers messages SANS destinataire (donc publics)
+        List<Message> history = messageRepository.findTop50ByRecipientIsNullOrderByTimestampDesc();
+        
+        // On inverse la liste pour les afficher du plus vieux au plus récent (Haut vers Bas)
+        Collections.reverse(history);
+        
+        // On donne la liste à la page HTML
+        model.addAttribute("history", history);
+        // -------------------------------------------
+
         return "index";
     }
 
@@ -73,15 +85,18 @@ public class ChatController {
         String username = principal.getName();
         String time = getCurrentTime();
 
-        // Préparation du message
+        // Préparation du message pour le WebSocket (Affichage immédiat)
         chatMessage.setType(MessageType.CHAT);
         chatMessage.setFrom(username);
         chatMessage.setTime(time);
-        chatMessage.setRecipient("All");
-
-        // Sauvegarde dans la BDD (Table 'messages')
-        Message dbMessage = new Message(username, chatMessage.getContent(), time);
-        messageRepository.save(dbMessage);
+        
+        // --- CORRECTION IMPORTANTE ---
+        // Pour la BDD, on utilise le nouveau constructeur : Message(sender, recipient, content)
+        // On met 'null' en recipient pour dire que c'est PUBLIC (c'est ce que cherche le repository)
+        Message dbMessage = new Message(username, null, chatMessage.getContent());
+        
+        messageRepository.save(dbMessage); // La date (Timestamp) est mise auto par le constructeur
+        // -----------------------------
 
         return chatMessage;
     }
@@ -99,14 +114,21 @@ public class ChatController {
         String recipient = message.getRecipient();
         String time = getCurrentTime();
 
+        // 1. Préparer le message
         message.setFrom(sender);
         message.setTime(time);
         message.setType(MessageType.CHAT);
 
-        // Envoi au destinataire
+        // 2. SAUVEGARDER EN BDD (Pour qu'il reste au rechargement)
+        Message dbMessage = new Message(sender, recipient, message.getContent());
+        messageRepository.save(dbMessage);
+
+        // 3. ENVOYER AU DESTINATAIRE (C'est ça qui fait vibrer son écran)
+        // Canal : /user/{recipient}/queue/private
         simpMessagingTemplate.convertAndSendToUser(recipient, "/queue/private", message);
 
-        // Envoi à l'expéditeur (pour affichage dans sa propre fenêtre)
+        // 4. ENVOYER A L'EXPÉDITEUR (Pour confirmation immédiate)
+        // Canal : /user/{sender}/queue/private
         simpMessagingTemplate.convertAndSendToUser(sender, "/queue/private", message);
     }
 
@@ -177,7 +199,7 @@ public class ChatController {
     @GetMapping("/api/history")
     @ResponseBody
     public List<Message> getChatHistory() {
-        List<Message> messages = messageRepository.findTop50ByOrderByIdDesc();
+        List<Message> messages = messageRepository.findTop50ByRecipientIsNullOrderByTimestampDesc();
         Collections.reverse(messages); // Remet dans l'ordre chronologique pour l'affichage
         return messages;
     }

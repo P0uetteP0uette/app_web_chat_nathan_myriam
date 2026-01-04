@@ -4,6 +4,7 @@
     <title>Gérer mes amis</title>
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.10.0/font/bootstrap-icons.css">
+    <link rel="stylesheet" href="/css/chat-popup.css">
 </head>
 <body class="bg-light">
 
@@ -14,10 +15,9 @@
     </div>
 </nav>
 
-<div class="container" style="max-width: 900px;"> <div class="row">
-        
+<div class="container" style="max-width: 900px;">
+    <div class="row">
         <div class="col-md-7">
-            
             <div th:if="${!requests.empty}" class="card mb-4 border-warning shadow-sm">
                 <div class="card-header bg-warning text-dark fw-bold">
                     <i class="bi bi-bell-fill"></i> Demandes reçues
@@ -45,29 +45,20 @@
 
             <div class="list-group shadow-sm" th:if="${users != null}">
                 <div th:each="dto : ${users}" class="list-group-item d-flex justify-content-between align-items-center">
-                    
                     <div class="d-flex align-items-center">
                         <div class="bg-secondary text-white rounded-circle d-flex justify-content-center align-items-center me-3" style="width: 40px; height: 40px;">
                             <span th:text="${#strings.substring(dto.user.username,0,1).toUpperCase()}">T</span>
                         </div>
                         <span class="fw-bold" th:text="${dto.user.username}">Pseudo</span>
                     </div>
-
                     <div th:switch="${dto.status}">
-                        <button th:case="'FRIEND'" class="btn btn-success btn-sm" disabled style="opacity: 1;">
-                            <i class="bi bi-check-circle-fill"></i> Amis
-                        </button>
-                        <button th:case="'WAITING'" class="btn btn-secondary btn-sm" disabled style="opacity: 1;">
-                            <i class="bi bi-hourglass-split"></i> En attente...
-                        </button>
+                        <button th:case="'FRIEND'" class="btn btn-success btn-sm" disabled><i class="bi bi-check-circle-fill"></i> Amis</button>
+                        <button th:case="'WAITING'" class="btn btn-secondary btn-sm" disabled><i class="bi bi-hourglass-split"></i> En attente...</button>
                         <form th:case="*" th:action="@{/add-friend}" method="post">
                             <input type="hidden" name="username" th:value="${dto.user.username}">
-                            <button type="submit" class="btn btn-outline-primary btn-sm rounded-pill">
-                                <i class="bi bi-person-plus"></i> Ajouter
-                            </button>
+                            <button type="submit" class="btn btn-outline-primary btn-sm rounded-pill"><i class="bi bi-person-plus"></i> Ajouter</button>
                         </form>
                     </div>
-
                 </div>
                 <div th:if="${users.empty}" class="text-center p-3 text-muted">Aucun résultat.</div>
             </div>
@@ -79,32 +70,49 @@
                     <i class="bi bi-people-fill text-primary"></i> Mes Amis
                 </div>
                 <ul class="list-group list-group-flush">
-                    <li th:each="friend : ${myFriends}" class="list-group-item d-flex align-items-center">
-                        <div class="bg-success text-white rounded-circle d-flex justify-content-center align-items-center me-3" 
-                             style="width: 35px; height: 35px; font-size: 0.9rem;">
-                            <span th:text="${#strings.substring(friend.username,0,1).toUpperCase()}">A</span>
+                    <li th:each="friend : ${myFriends}" class="list-group-item d-flex align-items-center justify-content-between">
+                        <div class="d-flex align-items-center">
+                            <div class="bg-success text-white rounded-circle d-flex justify-content-center align-items-center me-2" style="width: 35px; height: 35px;">
+                                <span th:text="${#strings.substring(friend.username,0,1).toUpperCase()}">A</span>
+                            </div>
+                            <span class="fw-bold" th:text="${friend.username}">Ami</span>
                         </div>
-                        
-                        <div class="flex-grow-1">
-                            <span class="fw-bold text-dark" th:text="${friend.username}">Ami</span>
-                        </div>
-
-                        <a href="/" class="btn btn-light btn-sm rounded-circle text-primary">
-                            <i class="bi bi-chat-fill"></i>
-                        </a>
-                    </li>
-
-                    <li th:if="${myFriends.empty}" class="list-group-item text-center py-5 text-muted">
-                        <i class="bi bi-emoji-frown display-4 mb-3 d-block"></i>
-                        Pas encore d'amis.<br>
-                        Cherche des gens à gauche !
+                        <button class="btn btn-light btn-sm rounded-circle text-primary" 
+                                th:data-friend="${friend.username}" 
+                                onclick="openChat(this.getAttribute('data-friend'))">
+                            <i class="bi bi-chat-dots-fill"></i>
+                        </button>
                     </li>
                 </ul>
             </div>
         </div>
-
     </div>
 </div>
+
+<div id="popup-window" style="display: none;">
+    <div class="chat-header" onclick="closeChat()">
+        <span>Discussion avec <span id="popup-friend-name">...</span></span>
+        <i class="bi bi-x-lg"></i>
+    </div>
+    
+    <div id="popup-chat-body" class="chat-body"></div>
+    
+    <div class="chat-footer">
+        <input type="text" id="popup-chat-input" class="form-control form-control-sm" placeholder="Message..." onkeypress="handleKeyPress(event)">
+        <button class="btn btn-primary btn-sm" onclick="sendPrivateMessage()">➤</button>
+    </div>
+</div>
+
+<script th:inline="javascript">
+    /*<![CDATA[*/
+    // On utilise la variable simple pour éviter l'erreur 500
+    var currentUserGlobal = /*[[${username}]]*/ 'Invité';
+    /*]]>*/
+</script>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/sockjs-client/1.5.1/sockjs.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/stomp.js/2.3.3/stomp.min.js"></script>
+<script src="/js/chat-popup.js"></script>
 
 </body>
 </html>

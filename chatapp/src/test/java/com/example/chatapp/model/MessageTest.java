@@ -20,7 +20,7 @@ class MessageTest {
         assertNotNull(message);
         assertEquals("Toto", message.getSender());
         assertEquals("Salut le monde", message.getContent());
-        assertEquals("12:00", message.getTime());
+        assertEquals("12:00", message.getTimestamp());
     }
 
     @Test

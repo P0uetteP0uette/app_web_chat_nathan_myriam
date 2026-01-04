@@ -1,3 +1,7 @@
+/* ================================================================
+   CHAT GÉNÉRAL (Main Controller)
+   ================================================================ */
+
 let stompClient = null;
 let selectedUser = null;
 let userStatuses = {};
@@ -7,7 +11,6 @@ let lastSender = null;
 let lastTimeMinutes = -1;  
 let lastTypePrivate = false; 
 
-// Utilitaire temps
 function timeToMinutes(timeStr) {
     if (!timeStr) return 0;
     const parts = timeStr.split(':');
@@ -26,7 +29,7 @@ document.addEventListener("DOMContentLoaded", function() {
             }
         });
 
-    // 2. Charger Historique
+    // 2. Charger Historique (Seulement le Public !)
     fetch('/api/history')
         .then(response => response.json())
         .then(messages => {
@@ -35,18 +38,35 @@ document.addEventListener("DOMContentLoaded", function() {
                     from: msg.sender,
                     content: msg.content,
                     time: msg.time,
+                    timestamp: msg.timestamp,
                     type: 'CHAT'
                 });
             });
         });
 
-    // 3. WebSocket
+    // 3. WebSocket (Le moteur unique)
     const socket = new SockJS('/chat-websocket');
     stompClient = Stomp.over(socket);
+    stompClient.debug = null; // Décommente pour cacher les logs
 
     stompClient.connect({}, () => {
-        stompClient.subscribe('/topic/public', (payload) => onMessageReceived(JSON.parse(payload.body)));
-        stompClient.subscribe('/user/queue/private', (payload) => onPrivateMessageReceived(JSON.parse(payload.body)));
+        console.log("✅ WebSocket connecté (chat.js)");
+        
+        // Abonnement Public
+        stompClient.subscribe('/topic/public', (payload) => {
+            onMessageReceived(JSON.parse(payload.body));
+        });
+        
+        // Abonnement Privé
+        stompClient.subscribe('/user/queue/private', (payload) => {
+            const msg = JSON.parse(payload.body);
+            console.log("📨 Message privé reçu dans chat.js:", msg);
+            // 🛑 STOP : On ne l'affiche plus ici !
+            // ✅ ON ENVOIE UN SIGNAL A LA POPUP
+            const event = new CustomEvent('private-message-received', { detail: msg });
+            window.dispatchEvent(event);
+        });
+        
         stompClient.send("/app/chat.addUser", {}, JSON.stringify({}));
     });
 
@@ -64,12 +84,8 @@ function sendMessage() {
 
     if (content && stompClient) {
         const chatMessage = { content: content, type: 'CHAT' };
-        if (selectedUser) {
-            chatMessage.recipient = selectedUser;
-            stompClient.send("/app/chat.private", {}, JSON.stringify(chatMessage));
-        } else {
-            stompClient.send("/app/sendMessage", {}, JSON.stringify(chatMessage));
-        }
+        // Envoi public uniquement ici
+        stompClient.send("/app/sendMessage", {}, JSON.stringify(chatMessage));
         input.value = '';
         input.focus();
     }
@@ -78,7 +94,6 @@ function sendMessage() {
 function sendStatusChange() {
     const selector = document.getElementById("status-select");
     const newStatus = selector.value;
-    // userStatuses["Moi"] = newStatus; // Optionnel
     if (stompClient) {
         const msg = { content: newStatus, type: 'STATUS' };
         stompClient.send("/app/chat.changeStatus", {}, JSON.stringify(msg));
@@ -105,25 +120,25 @@ function onMessageReceived(msg) {
     }
 }
 
-function onPrivateMessageReceived(msg) {
-    showChatMessage(msg, true);
-}
-
-// --- FONCTION D'AFFICHAGE CORRIGÉE ---
-function showChatMessage(msg, isPrivate = false) {
+// --- AFFICHAGE CHAT GÉNÉRAL ---
+function showChatMessage(msg) {
     const box = document.getElementById("chat-box");
-    
-    // --- SÉCURITÉ XSS ICI ---
-    // On nettoie le message avant de faire quoi que ce soit
     const safeContent = escapeHtml(msg.content);
-    // ------------------------
 
-    const currentMinutes = timeToMinutes(msg.time);
+    // Correction date
+    let displayTime = msg.time;
+    if (!displayTime && msg.timestamp) {
+        try {
+            displayTime = new Date(msg.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+        } catch(e) {}
+    }
+    if (!displayTime) displayTime = "";
+
+    const currentMinutes = timeToMinutes(displayTime);
     const timeDiff = currentMinutes - lastTimeMinutes;
 
     let shouldGroup = (msg.from === lastSender) 
-                   && (isPrivate === lastTypePrivate) 
-                   && (timeDiff >= 0 && timeDiff < 5);
+                    && (timeDiff >= 0 && timeDiff < 5);
 
     if (shouldGroup) {
         const lastElement = box.lastElementChild;
@@ -134,10 +149,7 @@ function showChatMessage(msg, isPrivate = false) {
                 newTextLine.style.marginTop = "4px"; 
                 newTextLine.style.paddingTop = "4px";
                 newTextLine.style.borderTop = "1px solid rgba(0,0,0,0.05)"; 
-                
-                // IMPORTANT : On utilise le contenu sécurisé
                 newTextLine.innerHTML = safeContent; 
-                
                 bubble.appendChild(newTextLine);
                 lastTimeMinutes = currentMinutes; 
                 box.scrollTop = box.scrollHeight;
@@ -149,63 +161,38 @@ function showChatMessage(msg, isPrivate = false) {
     const div = document.createElement("div");
     div.className = "message-group";
     div.style.marginBottom = "15px";
-
     const avatarUrl = `https://api.dicebear.com/7.x/bottts/svg?seed=${msg.from}`;
-    const bgColor = isPrivate ? '#ffefc1' : '#f1f1f1';
-    const borderColor = isPrivate ? '#e1c563' : '#ddd';
-    const lockIcon = isPrivate ? '🔒 ' : '';
 
-    // IMPORTANT : On injecte 'safeContent' au lieu de 'msg.content'
     div.innerHTML = `
         <div style="display: flex; align-items: flex-start;">
             <img src="${avatarUrl}" alt="Avatar" style="width: 40px; height: 40px; border-radius: 50%; margin-right: 10px; border: 2px solid #eee;">
-            
             <div style="max-width: 80%;">
                 <div style="font-size: 0.8em; color: #555; margin-bottom: 2px; margin-left: 2px;">
-                    <b>${msg.from}</b> <span style="color: #aaa;">[${msg.time}]</span>
+                    <b>${msg.from}</b> <span style="color: #aaa;">[${displayTime}]</span>
                 </div>
-                
-                <div class="chat-bubble" style="background-color: ${bgColor}; 
-                            border: 1px solid ${borderColor}; 
-                            padding: 10px 15px; 
-                            border-radius: 12px; 
-                            border-top-left-radius: 2px;
-                            position: relative;
-                            word-wrap: break-word;">
-                    ${lockIcon}${safeContent}
+                <div class="chat-bubble" style="background-color: #f1f1f1; border: 1px solid #ddd; padding: 10px 15px; border-radius: 12px; border-top-left-radius: 2px; position: relative; word-wrap: break-word;">
+                    ${safeContent}
                 </div>
             </div>
         </div>
     `;
     
     box.appendChild(div);
-
     lastSender = msg.from;
     lastTimeMinutes = currentMinutes;
-    lastTypePrivate = isPrivate;
-
     box.scrollTop = box.scrollHeight;
 }
 
 function showSystemMessage(text) {
     const box = document.getElementById("chat-box");
-    
-    // On réinitialise le "dernier envoyeur" pour empêcher de coller un futur message à ce message système
     lastSender = null; 
-
     const div = document.createElement("div");
-    div.style.color = "#888"; 
-    div.style.fontStyle = "italic"; 
-    div.style.fontSize = "0.85em";
-    div.style.marginBottom = "10px";
-    div.style.textAlign = "center";
+    div.style.cssText = "color:#888; font-style:italic; font-size:0.85em; margin-bottom:10px; text-align:center;";
     div.innerText = text;
-    
     box.appendChild(div);
     box.scrollTop = box.scrollHeight;
 }
 
-// --- GESTION SIDEBAR ---
 function getStatusColor(status) {
     if (status === 'BUSY') return '#e74c3c';
     if (status === 'AWAY') return '#f39c12';
@@ -214,40 +201,25 @@ function getStatusColor(status) {
 
 function addUserToSidebar(username, status = 'ONLINE') {
     const list = document.getElementById("users-list");
-
-    // 1. Mise à jour si existe déjà
     if (document.getElementById("user-" + username)) {
         updateUserStatus(username, status);
         return;
     }
-
-    // 2. Création de l'élément (identique à avant)
     const li = document.createElement("li");
     li.id = "user-" + username;
-    li.style.cursor = "pointer";
-    li.style.display = "flex";
-    li.style.alignItems = "center";
-    li.style.padding = "10px";
-    li.style.borderRadius = "4px";
-    li.style.marginBottom = "2px";
-    li.style.transition = "background 0.2s";
+    li.style.cssText = "cursor:pointer; display:flex; align-items:center; padding:10px; border-radius:4px; margin-bottom:2px; transition:background 0.2s;";
 
     const dot = document.createElement("span");
     dot.id = "status-dot-" + username;
-    dot.style.height = "10px";
-    dot.style.width = "10px";
-    dot.style.backgroundColor = getStatusColor(status);
-    dot.style.borderRadius = "50%";
-    dot.style.marginRight = "10px";
+    dot.style.cssText = `height:10px; width:10px; background-color:${getStatusColor(status)}; border-radius:50%; margin-right:10px;`;
     
     const text = document.createElement("span");
     text.innerText = username;
     text.style.color = "white";
 
-    // 3. Style Spécial "Moi"
     if (username === currentUserGlobal) {
         text.style.fontWeight = "bold";
-        text.style.color = "#f1c40f"; // Jaune
+        text.style.color = "#f1c40f"; 
         text.innerText += " (Moi)";
         li.style.border = "1px solid rgba(241, 196, 15, 0.5)";
     }
@@ -255,43 +227,20 @@ function addUserToSidebar(username, status = 'ONLINE') {
     li.appendChild(dot);
     li.appendChild(text);
 
-    // 4. Gestion du Clic (identique à avant)
     li.onclick = function() {
-        if (selectedUser === username) {
-            selectedUser = null;
-            li.style.backgroundColor = "transparent";
-            document.getElementById("chat-header").innerText = "Chat Général";
-        } else {
-            document.querySelectorAll("#users-list li").forEach(el => {
-                el.style.backgroundColor = "transparent";
-            });
-            selectedUser = username;
-            li.style.backgroundColor = "rgba(255, 255, 255, 0.1)";
-            document.getElementById("chat-header").innerText = "🔒 Privé avec " + username;
-
-            if (userStatuses[username] === 'BUSY') {
-                showSystemMessage("⚠️ Attention : " + username + " est occupé(e).");
-            }
+        // Quand on clique sur un user, ça ouvre la POPUP (via chat-popup.js)
+        if (typeof openChat === "function") {
+            openChat(username);
         }
     };
 
-    // --- C'EST ICI QUE CA CHANGE ---
-    // Si c'est MOI -> Je me mets tout en haut (prepend)
-    // Si c'est les AUTRES -> Ils vont à la suite (appendChild)
-    if (username === currentUserGlobal) {
-        list.prepend(li); 
-    } else {
-        list.appendChild(li);
-    }
+    if (username === currentUserGlobal) list.prepend(li); 
+    else list.appendChild(li);
 }
 
 function removeUserFromSidebar(username) {
     const li = document.getElementById("user-" + username);
     if (li) li.remove();
-    if (selectedUser === username) {
-        selectedUser = null;
-        document.getElementById("chat-header").innerText = "Chat Général";
-    }
 }
 
 function updateUserStatus(username, newStatus) {
@@ -300,14 +249,7 @@ function updateUserStatus(username, newStatus) {
     userStatuses[username] = newStatus;
 }
 
-// Fonction de sécurité pour éviter les failles XSS
-// Elle transforme les caractères spéciaux en texte inoffensif
 function escapeHtml(text) {
     if (!text) return text;
-    return text
-        .replace(/&/g, "&amp;")
-        .replace(/</g, "&lt;")
-        .replace(/>/g, "&gt;")
-        .replace(/"/g, "&quot;")
-        .replace(/'/g, "&#039;");
+    return text.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;").replace(/'/g, "&#039;");
 }

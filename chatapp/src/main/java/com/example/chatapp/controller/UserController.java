@@ -32,6 +32,8 @@ public class UserController {
         String myUsername = principal.getName();
         User me = userRepository.findByUsername(myUsername).orElseThrow();
 
+        model.addAttribute("username", myUsername);
+
         // --- 1. RÉCUPÉRER MES AMIS (NOUVEAU) ---
         List<Friendship> friendships = friendshipRepository.findAllFriendsOf(me);
         List<User> myFriends = new ArrayList<>();

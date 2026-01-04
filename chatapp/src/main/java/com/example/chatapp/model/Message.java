@@ -1,104 +1,60 @@
 package com.example.chatapp.model;
 
 import jakarta.persistence.*;
+import java.time.LocalDateTime;
 
 /**
  * Entité JPA représentant un message stocké en base de données.
- * Cette classe est mappée à la table "messages" et permet la persistance de l'historique du chat.
+ * Mise à jour pour supporter les messages privés (Expéditeur + Destinataire).
  */
 @Entity
 @Table(name = "messages")
 public class Message {
 
-    /**
-     * Identifiant unique du message (Clé primaire).
-     * Généré automatiquement par la base de données (Auto-incrément).
-     */
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
 
-    /**
-     * Le pseudonyme de l'expéditeur du message.
-     */
-    private String sender;
+    private String sender;    // Pseudo de l'expéditeur
+    private String recipient; // Pseudo du destinataire (NOUVEAU)
+    private String content;   // Le texte du message
+
+    private LocalDateTime timestamp; // Date précise pour le tri (REMPLACE 'time')
 
     /**
-     * Le contenu textuel du message.
-     */
-    private String content;
-
-    /**
-     * L'heure d'envoi du message stockée sous forme de chaîne (ex: "14:30").
-     */
-    private String time; 
-
-    /**
-     * Constructeur vide requis par la spécification JPA.
-     * Nécessaire pour que le framework puisse instancier l'objet depuis la base de données.
+     * Constructeur vide requis par JPA.
      */
     public Message() {}
 
     /**
-     * Constructeur permettant de créer un nouveau message avant sauvegarde.
+     * Constructeur pour créer un nouveau message.
+     * La date est mise automatiquement à "Maintenant".
      *
-     * @param sender Le pseudo de l'expéditeur.
-     * @param content Le texte du message.
-     * @param time L'heure d'envoi formatée.
+     * @param sender L'expéditeur
+     * @param recipient Le destinataire
+     * @param content Le texte
      */
-    public Message(String sender, String content, String time) {
+    public Message(String sender, String recipient, String content) {
         this.sender = sender;
+        this.recipient = recipient;
         this.content = content;
-        this.time = time;
+        this.timestamp = LocalDateTime.now();
     }
 
     // --- Getters et Setters ---
 
-    /**
-     * Récupère l'identifiant unique du message.
-     * @return L'ID du message.
-     */
     public Long getId() { return id; }
-
-    /**
-     * Définit l'identifiant du message.
-     * @param id Le nouvel ID.
-     */
     public void setId(Long id) { this.id = id; }
 
-    /**
-     * Récupère le nom de l'expéditeur.
-     * @return Le pseudo de l'expéditeur.
-     */
     public String getSender() { return sender; }
-
-    /**
-     * Définit le nom de l'expéditeur.
-     * @param sender Le pseudo de l'expéditeur.
-     */
     public void setSender(String sender) { this.sender = sender; }
 
-    /**
-     * Récupère le contenu du message.
-     * @return Le texte du message.
-     */
-    public String getContent() { return content; }
+    public String getRecipient() { return recipient; }
+    public void setRecipient(String recipient) { this.recipient = recipient; }
 
-    /**
-     * Définit le contenu du message.
-     * @param content Le nouveau texte.
-     */
+    public String getContent() { return content; }
     public void setContent(String content) { this.content = content; }
 
-    /**
-     * Récupère l'heure d'envoi.
-     * @return L'heure formatée.
-     */
-    public String getTime() { return time; }
-
-    /**
-     * Définit l'heure d'envoi.
-     * @param time L'heure formatée (ex: "HH:mm").
-     */
-    public void setTime(String time) { this.time = time; }
+    public LocalDateTime getTimestamp() { return timestamp; }
+    public void setTimestamp(LocalDateTime timestamp) { this.timestamp = timestamp; }
 }

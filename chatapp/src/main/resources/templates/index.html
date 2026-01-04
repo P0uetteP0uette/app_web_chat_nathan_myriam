@@ -4,6 +4,7 @@
     <meta charset="UTF-8">
     <title>Chat App</title>
     <link rel="stylesheet" href="css/main.css">
+    <link rel="stylesheet" href="/css/chat-popup.css">
 </head>
 <body>
 
@@ -22,7 +23,7 @@
         </div>
 
         <ul id="users-list">
-            </ul>
+        </ul>
         
         <div style="margin-top: auto; padding-top: 20px; border-top: 1px solid #ddd;">
             
@@ -45,7 +46,7 @@
         </div>
 
         <div id="chat-box">
-            </div>
+        </div>
 
         <div id="message-input-area">
             <div class="input-wrapper">
@@ -64,12 +65,25 @@
     /*]]>*/
 </script>
 
+<div id="popup-window" style="display: none;">
+    
+    <div class="chat-header" onclick="closeChat()">
+        <span>Discussion avec <span id="popup-friend-name">...</span></span>
+        <i class="bi bi-x-lg"></i>
+    </div>
+    
+    <div id="popup-chat-body" class="chat-body"></div>
+    
+    <div class="chat-footer">
+        <input type="text" id="popup-chat-input" class="form-control form-control-sm" placeholder="Message..." onkeypress="handleKeyPress(event)">
+        <button class="btn btn-primary btn-sm" onclick="sendPrivateMessage()">➤</button>
+    </div>
+</div>
+
 <script src="https://cdnjs.cloudflare.com/ajax/libs/sockjs-client/1.5.1/sockjs.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/stomp.js/2.3.3/stomp.min.js"></script>
-<script src="/js/chat.js?v=3"></script>
-
-</body>
-</html>
+<script src="/js/chat.js"></script>
+<script src="/js/chat-popup.js"></script>
 
 </body>
 </html>
