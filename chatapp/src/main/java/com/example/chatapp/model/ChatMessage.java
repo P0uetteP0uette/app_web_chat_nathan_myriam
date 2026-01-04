@@ -1,102 +1,105 @@
 package com.example.chatapp.model;
 
+import java.time.LocalDateTime;
+
 /**
- * Modèle de données (DTO) représentant un message échangé via WebSocket.
- * Cet objet agit comme une enveloppe pour transporter les informations entre le client (JS) et le serveur (Java).
+ * Modèle représentant un message dans le chat.
+ * Utilisé pour les échanges WebSocket (STOMP) entre le serveur et les clients.
  */
 public class ChatMessage {
-
-    /**
-     * Le type du message (CHAT, JOIN, LEAVE, STATUS).
-     * Permet au frontend de savoir comment traiter l'information.
-     */
-    private MessageType type;
     
-    /**
-     * Le contenu textuel du message.
-     */
+    private MessageType type;
     private String content;
+    private String from;      // Pour les messages publics (compatibilité)
+    private String sender;    // Pour les messages privés
+    private String recipient; // Pour les messages privés
+    private String time;      // Format HH:mm
+    private LocalDateTime timestamp; // Timestamp complet
 
-    /**
-     * Le pseudo de l'expéditeur.
-     */
-    private String from;
+    // Constructeurs
+    public ChatMessage() {
+    }
 
-    /**
-     * L'heure de l'envoi (formatée en chaîne de caractères).
-     */
-    private String time;
+    public ChatMessage(MessageType type, String content, String from) {
+        this.type = type;
+        this.content = content;
+        this.from = from;
+        this.sender = from;
+    }
 
-    /**
-     * Le destinataire du message.
-     * Si ce champ est rempli, c'est un message privé. Sinon, c'est un message public.
-     */
-    private String recipient;
+    // Getters et Setters
+    public MessageType getType() {
+        return type;
+    }
 
-    /**
-     * Constructeur par défaut nécessaire pour la désérialisation JSON par Jackson.
-     */
-    public ChatMessage() {}
+    public void setType(MessageType type) {
+        this.type = type;
+    }
 
-    // --- Getters et Setters ---
+    public String getContent() {
+        return content;
+    }
 
-    /**
-     * Obtient le type du message.
-     * @return Le type (enum MessageType).
-     */
-    public MessageType getType() { return type; }
+    public void setContent(String content) {
+        this.content = content;
+    }
 
-    /**
-     * Définit le type du message.
-     * @param type Le nouveau type.
-     */
-    public void setType(MessageType type) { this.type = type; }
+    public String getFrom() {
+        return from;
+    }
 
-    /**
-     * Obtient le contenu du message.
-     * @return Le texte du message.
-     */
-    public String getContent() { return content; }
+    public void setFrom(String from) {
+        this.from = from;
+        // Synchroniser avec sender pour compatibilité
+        if (this.sender == null) {
+            this.sender = from;
+        }
+    }
 
-    /**
-     * Définit le contenu du message.
-     * @param content Le texte à envoyer.
-     */
-    public void setContent(String content) { this.content = content; }
+    public String getSender() {
+        return sender;
+    }
 
-    /**
-     * Obtient le nom de l'expéditeur.
-     * @return Le pseudo de l'expéditeur.
-     */
-    public String getFrom() { return from; }
+    public void setSender(String sender) {
+        this.sender = sender;
+        // Synchroniser avec from pour compatibilité
+        if (this.from == null) {
+            this.from = sender;
+        }
+    }
 
-    /**
-     * Définit le nom de l'expéditeur.
-     * @param from Le pseudo de l'expéditeur.
-     */
-    public void setFrom(String from) { this.from = from; }
+    public String getRecipient() {
+        return recipient;
+    }
 
-    /**
-     * Obtient l'heure du message.
-     * @return L'heure formatée (ex: "14:30").
-     */
-    public String getTime() { return time; }
+    public void setRecipient(String recipient) {
+        this.recipient = recipient;
+    }
 
-    /**
-     * Définit l'heure du message.
-     * @param time L'heure formatée.
-     */
-    public void setTime(String time) { this.time = time; }
+    public String getTime() {
+        return time;
+    }
 
-    /**
-     * Obtient le destinataire du message (pour les messages privés).
-     * @return Le pseudo du destinataire ou null si public.
-     */
-    public String getRecipient() { return recipient; }
+    public void setTime(String time) {
+        this.time = time;
+    }
 
-    /**
-     * Définit le destinataire du message.
-     * @param recipient Le pseudo du destinataire.
-     */
-    public void setRecipient(String recipient) { this.recipient = recipient; }
+    public LocalDateTime getTimestamp() {
+        return timestamp;
+    }
+
+    public void setTimestamp(LocalDateTime timestamp) {
+        this.timestamp = timestamp;
+    }
+
+    @Override
+    public String toString() {
+        return "ChatMessage{" +
+                "type=" + type +
+                ", content='" + content + '\'' +
+                ", sender='" + sender + '\'' +
+                ", recipient='" + recipient + '\'' +
+                ", time='" + time + '\'' +
+                '}';
+    }
 }

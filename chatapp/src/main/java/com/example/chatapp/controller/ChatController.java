@@ -15,6 +15,7 @@ import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.ResponseBody;
 
 import java.security.Principal;
+import java.time.LocalDateTime;
 import java.time.LocalTime;
 import java.time.format.DateTimeFormatter;
 import java.util.Collections;
@@ -114,22 +115,31 @@ public class ChatController {
         String recipient = message.getRecipient();
         String time = getCurrentTime();
 
-        // 1. Préparer le message
-        message.setFrom(sender);
-        message.setTime(time);
-        message.setType(MessageType.CHAT);
+        System.out.println("📨 Message privé reçu de: " + sender + " vers: " + recipient);
+
+        // 1. Préparer le message pour WebSocket
+        ChatMessage wsMessage = new ChatMessage();
+        wsMessage.setSender(sender);        // ✅ CORRECTION : setSender au lieu de setFrom
+        wsMessage.setRecipient(recipient);  // ✅ CORRECTION : Explicite
+        wsMessage.setContent(message.getContent());
+        wsMessage.setType(MessageType.CHAT);
+        wsMessage.setTime(time);
+        wsMessage.setTimestamp(LocalDateTime.now()); // ✅ AJOUT : Timestamp pour le client
 
         // 2. SAUVEGARDER EN BDD (Pour qu'il reste au rechargement)
         Message dbMessage = new Message(sender, recipient, message.getContent());
         messageRepository.save(dbMessage);
+        System.out.println("💾 Message sauvegardé en BDD");
 
         // 3. ENVOYER AU DESTINATAIRE (C'est ça qui fait vibrer son écran)
-        // Canal : /user/{recipient}/queue/private
-        simpMessagingTemplate.convertAndSendToUser(recipient, "/queue/private", message);
+        System.out.println("📤 Envoi à " + recipient + " via /user/" + recipient + "/queue/private");
+        simpMessagingTemplate.convertAndSendToUser(recipient, "/queue/private", wsMessage);
 
         // 4. ENVOYER A L'EXPÉDITEUR (Pour confirmation immédiate)
-        // Canal : /user/{sender}/queue/private
-        simpMessagingTemplate.convertAndSendToUser(sender, "/queue/private", message);
+        System.out.println("📤 Envoi à " + sender + " (confirmation) via /user/" + sender + "/queue/private");
+        simpMessagingTemplate.convertAndSendToUser(sender, "/queue/private", wsMessage);
+        
+        System.out.println("✅ Message privé envoyé avec succès");
     }
 
     /**
