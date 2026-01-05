@@ -13,13 +13,18 @@
     <div id="sidebar">
         <h3>👥 Utilisateurs</h3>
         
-        <div id="current-user">
+<div id="current-user">
             Moi : <b th:text="${username}">Invité</b>
             <select id="status-select" onchange="sendStatusChange()">
                 <option value="ONLINE">En ligne</option>
                 <option value="BUSY">Occupé</option>
                 <option value="AWAY">Absent</option>
             </select>
+
+            <button id="sound-toggle-btn" onclick="toggleSound()" style="margin-top: 10px; width: 100%; padding: 5px; background: none; border: 1px solid #7f8c8d; color: #ecf0f1; border-radius: 4px; cursor: pointer; font-size: 0.9em; display: flex; align-items: center; justify-content: center; gap: 5px;">
+                <i id="sound-icon" class="bi bi-volume-up-fill"></i> 
+                <span id="sound-text">Son: ON</span>
+            </button>
         </div>
 
         <ul id="users-list">
@@ -79,6 +84,8 @@
         <button class="btn btn-primary btn-sm" onclick="sendPrivateMessage()">➤</button>
     </div>
 </div>
+
+<audio id="notification-sound" src="/sounds/notification.mp3" preload="auto"></audio>
 
 <script src="https://cdnjs.cloudflare.com/ajax/libs/sockjs-client/1.5.1/sockjs.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/stomp.js/2.3.3/stomp.min.js"></script>

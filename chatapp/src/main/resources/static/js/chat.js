@@ -1,24 +1,60 @@
 /* ================================================================
-   CHAT GÉNÉRAL (Main Controller)
+   CHAT GÉNÉRAL (Main Controller) - VERSION CORRIGÉE 100%
    ================================================================ */
 
 let stompClient = null;
 let selectedUser = null;
 let userStatuses = {};
-
-// Mémoire pour le regroupement
 let lastSender = null;     
 let lastTimeMinutes = -1;  
-let lastTypePrivate = false; 
 
-function timeToMinutes(timeStr) {
-    if (!timeStr) return 0;
-    const parts = timeStr.split(':');
-    return parseInt(parts[0]) * 60 + parseInt(parts[1]);
+// --- GESTION DU SON ---
+// 1. On lit la mémoire. Si pas défini, on met TRUE par défaut.
+let isSoundOn = localStorage.getItem("chatSound") !== "false";
+
+function toggleSound() {
+    isSoundOn = !isSoundOn;
+    localStorage.setItem("chatSound", isSoundOn);
+    updateSoundIcon();
 }
 
+function updateSoundIcon() {
+    // On récupère les 3 éléments de ton bouton HTML
+    const btn = document.getElementById("sound-toggle-btn");
+    const icon = document.getElementById("sound-icon");
+    const text = document.getElementById("sound-text");
+
+    // SÉCURITÉ : On vérifie que les éléments existent avant de toucher à leur style
+    // pour éviter l'erreur "Cannot read properties of null"
+    if (isSoundOn) {
+        // Mode ON
+        if (icon) icon.className = "bi bi-volume-up-fill";
+        if (text) text.innerText = "Son: ON";
+        if (btn) btn.style.opacity = "1";
+    } else {
+        // Mode OFF
+        if (icon) icon.className = "bi bi-volume-mute-fill";
+        if (text) text.innerText = "Son: OFF";
+        if (btn) btn.style.opacity = "0.7";
+    }
+}
+
+// Fonction corrigée et sécurisée
+function playNotificationSound() {
+    if (!isSoundOn) return; // Si muet, on arrête tout de suite
+
+    const audio = document.getElementById("notification-sound");
+    if (audio) {
+        audio.currentTime = 0;
+        audio.play().catch(e => console.log("Son bloqué (cliquez sur la page pour activer)"));
+    }
+}
+
+// --- INITIALISATION ---
 document.addEventListener("DOMContentLoaded", function() {
-    
+    // Mise à jour visuelle du bouton dès le chargement
+    updateSoundIcon();
+
     // 1. Charger Users
     fetch('/api/users')
         .then(response => response.json())
@@ -29,53 +65,60 @@ document.addEventListener("DOMContentLoaded", function() {
             }
         });
 
-    // 2. Charger Historique (Seulement le Public !)
+    // 2. Charger Historique
     fetch('/api/history')
         .then(response => response.json())
         .then(messages => {
-            messages.forEach(msg => {
-                showChatMessage({
-                    from: msg.sender,
-                    content: msg.content,
-                    time: msg.time,
-                    timestamp: msg.timestamp,
-                    type: 'CHAT'
-                });
-            });
+            messages.forEach(msg => showChatMessage(msg));
         });
 
-    // 3. WebSocket (Le moteur unique)
+    // 3. WebSocket
     const socket = new SockJS('/chat-websocket');
     stompClient = Stomp.over(socket);
-    stompClient.debug = null; // Décommente pour cacher les logs
+    // stompClient.debug = null; // Décommente pour désactiver les logs console
 
     stompClient.connect({}, () => {
-        console.log("✅ WebSocket connecté (chat.js)");
-        
-        // Abonnement Public
         stompClient.subscribe('/topic/public', (payload) => {
             onMessageReceived(JSON.parse(payload.body));
         });
         
-        // Abonnement Privé
+        // Cherche ce bloc dans ton code (vers la ligne 87 environ) et remplace-le :
+
+// Dans chat.js, remplace le bloc stompClient.subscribe('/user/queue/private'...) par :
+
         stompClient.subscribe('/user/queue/private', (payload) => {
             const msg = JSON.parse(payload.body);
-            console.log("📨 Message privé reçu dans chat.js:", msg);
-            // 🛑 STOP : On ne l'affiche plus ici !
-            // ✅ ON ENVOIE UN SIGNAL A LA POPUP
+            
+            // 1. On transmet toujours l'info à la popup (pour l'affichage)
             const event = new CustomEvent('private-message-received', { detail: msg });
             window.dispatchEvent(event);
+
+            // 2. LE CORRECTIF EST ICI :
+            // On ne joue le son QUE SI :
+            // - Le son est activé (isSoundOn)
+            // - ET ce n'est PAS moi qui ai envoyé le message (msg.sender !== currentUserGlobal)
+            
+            // Petite sécurité : parfois c'est msg.sender, parfois msg.from selon ton backend
+            const sender = msg.sender || msg.from; 
+
+            if (isSoundOn && sender !== currentUserGlobal) {
+                playNotificationSound(); 
+            }
         });
         
         stompClient.send("/app/chat.addUser", {}, JSON.stringify({}));
     });
 
-    document.getElementById("message").addEventListener("keydown", function(event) {
-        if (event.key === "Enter") {
-            event.preventDefault();
-            sendMessage();
-        }
-    });
+    // Envoi avec Entrée
+    const msgInput = document.getElementById("message");
+    if(msgInput) {
+        msgInput.addEventListener("keydown", function(event) {
+            if (event.key === "Enter") {
+                event.preventDefault();
+                sendMessage();
+            }
+        });
+    }
 });
 
 function sendMessage() {
@@ -84,7 +127,6 @@ function sendMessage() {
 
     if (content && stompClient) {
         const chatMessage = { content: content, type: 'CHAT' };
-        // Envoi public uniquement ici
         stompClient.send("/app/sendMessage", {}, JSON.stringify(chatMessage));
         input.value = '';
         input.focus();
@@ -93,8 +135,8 @@ function sendMessage() {
 
 function sendStatusChange() {
     const selector = document.getElementById("status-select");
-    const newStatus = selector.value;
-    if (stompClient) {
+    if(selector && stompClient) {
+        const newStatus = selector.value;
         const msg = { content: newStatus, type: 'STATUS' };
         stompClient.send("/app/chat.changeStatus", {}, JSON.stringify(msg));
     }
@@ -115,30 +157,41 @@ function onMessageReceived(msg) {
         userStatuses[msg.from] = msg.content;
         updateUserStatus(msg.from, msg.content);
     } 
-    else {
+    else if (msg.type === 'CHAT') {
+        // 👇 C'EST ICI QUE C'ÉTAIT CASSÉ : "playNotification" -> "playNotificationSound"
+        if (msg.from !== currentUserGlobal) {
+            playNotificationSound(); 
+        }
         showChatMessage(msg);
     }
 }
 
-// --- AFFICHAGE CHAT GÉNÉRAL ---
+// ... Le reste du fichier (showChatMessage, addUserToSidebar...) reste identique ...
+// (Si tu as besoin, je peux te redonner ces fonctions, mais normalement c'est bon)
+
+function timeToMinutes(timeStr) {
+    if (!timeStr) return 0;
+    const parts = timeStr.split(':');
+    return parseInt(parts[0]) * 60 + parseInt(parts[1]);
+}
+
 function showChatMessage(msg) {
     const box = document.getElementById("chat-box");
-    const safeContent = escapeHtml(msg.content);
+    if (!box) return;
 
-    // Correction date
+    const senderName = msg.from || msg.sender || "Inconnu";
+
     let displayTime = msg.time;
     if (!displayTime && msg.timestamp) {
-        try {
-            displayTime = new Date(msg.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
-        } catch(e) {}
+        try { displayTime = new Date(msg.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }); } catch(e) {}
     }
     if (!displayTime) displayTime = "";
 
+    const safeContent = escapeHtml(msg.content);
     const currentMinutes = timeToMinutes(displayTime);
     const timeDiff = currentMinutes - lastTimeMinutes;
 
-    let shouldGroup = (msg.from === lastSender) 
-                    && (timeDiff >= 0 && timeDiff < 5);
+    let shouldGroup = (senderName === lastSender) && (timeDiff >= 0 && timeDiff < 5);
 
     if (shouldGroup) {
         const lastElement = box.lastElementChild;
@@ -146,9 +199,7 @@ function showChatMessage(msg) {
             const bubble = lastElement.querySelector(".chat-bubble");
             if (bubble) {
                 const newTextLine = document.createElement("div");
-                newTextLine.style.marginTop = "4px"; 
-                newTextLine.style.paddingTop = "4px";
-                newTextLine.style.borderTop = "1px solid rgba(0,0,0,0.05)"; 
+                newTextLine.style.cssText = "margin-top:4px; padding-top:4px; border-top:1px solid rgba(0,0,0,0.05);";
                 newTextLine.innerHTML = safeContent; 
                 bubble.appendChild(newTextLine);
                 lastTimeMinutes = currentMinutes; 
@@ -161,14 +212,14 @@ function showChatMessage(msg) {
     const div = document.createElement("div");
     div.className = "message-group";
     div.style.marginBottom = "15px";
-    const avatarUrl = `https://api.dicebear.com/7.x/bottts/svg?seed=${msg.from}`;
+    const avatarUrl = `https://api.dicebear.com/7.x/bottts/svg?seed=${senderName}`;
 
     div.innerHTML = `
         <div style="display: flex; align-items: flex-start;">
             <img src="${avatarUrl}" alt="Avatar" style="width: 40px; height: 40px; border-radius: 50%; margin-right: 10px; border: 2px solid #eee;">
             <div style="max-width: 80%;">
                 <div style="font-size: 0.8em; color: #555; margin-bottom: 2px; margin-left: 2px;">
-                    <b>${msg.from}</b> <span style="color: #aaa;">[${displayTime}]</span>
+                    <b>${senderName}</b> <span style="color: #aaa;">[${displayTime}]</span>
                 </div>
                 <div class="chat-bubble" style="background-color: #f1f1f1; border: 1px solid #ddd; padding: 10px 15px; border-radius: 12px; border-top-left-radius: 2px; position: relative; word-wrap: break-word;">
                     ${safeContent}
@@ -178,13 +229,14 @@ function showChatMessage(msg) {
     `;
     
     box.appendChild(div);
-    lastSender = msg.from;
+    lastSender = senderName;
     lastTimeMinutes = currentMinutes;
     box.scrollTop = box.scrollHeight;
 }
 
 function showSystemMessage(text) {
     const box = document.getElementById("chat-box");
+    if(!box) return;
     lastSender = null; 
     const div = document.createElement("div");
     div.style.cssText = "color:#888; font-style:italic; font-size:0.85em; margin-bottom:10px; text-align:center;";
@@ -201,6 +253,7 @@ function getStatusColor(status) {
 
 function addUserToSidebar(username, status = 'ONLINE') {
     const list = document.getElementById("users-list");
+    if (!list) return;
     if (document.getElementById("user-" + username)) {
         updateUserStatus(username, status);
         return;
@@ -228,10 +281,7 @@ function addUserToSidebar(username, status = 'ONLINE') {
     li.appendChild(text);
 
     li.onclick = function() {
-        // Quand on clique sur un user, ça ouvre la POPUP (via chat-popup.js)
-        if (typeof openChat === "function") {
-            openChat(username);
-        }
+        if (typeof openChat === "function") openChat(username);
     };
 
     if (username === currentUserGlobal) list.prepend(li); 

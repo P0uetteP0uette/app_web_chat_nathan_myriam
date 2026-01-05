@@ -5,7 +5,7 @@ import org.springframework.context.annotation.Configuration;
 import org.springframework.security.authentication.AuthenticationManager;
 import org.springframework.security.config.annotation.authentication.configuration.AuthenticationConfiguration;
 import org.springframework.security.config.annotation.web.builders.HttpSecurity;
-import org.springframework.security.config.annotation.web.configurers.AbstractHttpConfigurer; // <--- Import ajouté
+import org.springframework.security.config.annotation.web.configurers.AbstractHttpConfigurer;
 import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.security.web.SecurityFilterChain;
@@ -16,12 +16,15 @@ public class SecurityConfig {
     @Bean
     public SecurityFilterChain filterChain(HttpSecurity http) throws Exception {
         http
-            // 1. ON DÉSACTIVE LE CSRF POUR DÉBLOQUER LES FORMULAIRES POST
+            // 1. ON DÉSACTIVE LE CSRF
             .csrf(AbstractHttpConfigurer::disable) 
 
             // 2. Les autorisations
             .authorizeHttpRequests(auth -> auth
-                .requestMatchers("/register", "/login", "/css/**", "/js/**", "/activate").permitAll()
+                // 👇 J'AI AJOUTÉ "/sounds/**" DANS CETTE LISTE 👇
+                .requestMatchers("/register", "/login", "/css/**", "/js/**", "/activate", "/sounds/**").permitAll()
+                
+                // Tout le reste nécessite une connexion
                 .anyRequest().authenticated()
             )
             // 3. Le Login
@@ -44,9 +47,6 @@ public class SecurityConfig {
     public PasswordEncoder passwordEncoder() {
         return new BCryptPasswordEncoder();
     }
-
-// N'oublie pas d'importer ça en haut du fichier :
-    // import org.springframework.security.config.annotation.authentication.configuration.AuthenticationConfiguration;
 
     @Bean
     public AuthenticationManager authenticationManager(AuthenticationConfiguration configuration) throws Exception {
