@@ -139,3 +139,39 @@ html, body {
     background-color: #27ae60;
     transform: scale(1.1);
 }
+
+/* Style de base pour toutes les bulles (arrondis, padding...) */
+.message-bubble {
+    padding: 10px 15px;
+    border-radius: 20px;
+    margin-bottom: 10px;
+    max-width: 70%; /* Pour ne pas que la bulle prenne toute la largeur */
+    word-wrap: break-word;
+    display: inline-block; /* Important pour que la taille s'adapte au texte */
+    clear: both; /* Pour éviter que les messages se chevauchent */
+}
+
+/* TES messages dans le général */
+.my-message-general {
+    float: right; /* Aligne à droite */
+    /* Un bleu foncé professionnel (ex: bleu Discord/Facebook sombre) */
+    background-color: #3b5998; 
+    color: white; /* Texte blanc pour le contraste */
+    border-bottom-right-radius: 5px; /* Petit effet visuel sur le coin */
+}
+
+/* Les messages des AUTRES */
+.other-message-general {
+    float: left; /* Aligne à gauche */
+    background-color: #e4e6eb; /* Gris clair classique */
+    color: black;
+    border-bottom-left-radius: 5px;
+}
+
+/* IMPORTANT : Il faut un "clear" après la liste des messages pour gérer les floats */
+/* Ajoute une div vide avec la classe 'clearfix' après ta zone de messages dans le HTML */
+.clearfix::after {
+    content: "";
+    clear: both;
+    display: table;
+}
