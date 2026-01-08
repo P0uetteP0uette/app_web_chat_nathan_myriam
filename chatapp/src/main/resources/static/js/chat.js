@@ -8,6 +8,10 @@ let userStatuses = {};
 let lastSender = null;     
 let lastTimeMinutes = -1;  
 
+let isTyping = false;
+let typingTimeout = null;
+let typingDisplayTimeout = null;
+
 // --- GESTION DU SON ---
 // 1. On lit la mémoire. Si pas défini, on met TRUE par défaut.
 let isSoundOn = localStorage.getItem("chatSound") !== "false";
@@ -52,6 +56,7 @@ function playNotificationSound() {
 
 // --- INITIALISATION ---
 document.addEventListener("DOMContentLoaded", function() {
+
     // Mise à jour visuelle du bouton dès le chargement
     updateSoundIcon();
 
@@ -82,10 +87,7 @@ document.addEventListener("DOMContentLoaded", function() {
             onMessageReceived(JSON.parse(payload.body));
         });
         
-        // Cherche ce bloc dans ton code (vers la ligne 87 environ) et remplace-le :
-
-// Dans chat.js, remplace le bloc stompClient.subscribe('/user/queue/private'...) par :
-
+        // Gestion des messages privés (avec correctif sonore)
         stompClient.subscribe('/user/queue/private', (payload) => {
             const msg = JSON.parse(payload.body);
             
@@ -93,12 +95,10 @@ document.addEventListener("DOMContentLoaded", function() {
             const event = new CustomEvent('private-message-received', { detail: msg });
             window.dispatchEvent(event);
 
-            // 2. LE CORRECTIF EST ICI :
+            // 2. LE CORRECTIF SONORE :
             // On ne joue le son QUE SI :
             // - Le son est activé (isSoundOn)
             // - ET ce n'est PAS moi qui ai envoyé le message (msg.sender !== currentUserGlobal)
-            
-            // Petite sécurité : parfois c'est msg.sender, parfois msg.from selon ton backend
             const sender = msg.sender || msg.from; 
 
             if (isSoundOn && sender !== currentUserGlobal) {
@@ -109,14 +109,43 @@ document.addEventListener("DOMContentLoaded", function() {
         stompClient.send("/app/chat.addUser", {}, JSON.stringify({}));
     });
 
-    // Envoi avec Entrée
+    // 4. Gestion de la zone de saisie (Envoi + Indicateur de frappe)
     const msgInput = document.getElementById("message");
     if(msgInput) {
+        // A. Envoi avec Entrée (Existant)
         msgInput.addEventListener("keydown", function(event) {
             if (event.key === "Enter") {
                 event.preventDefault();
                 sendMessage();
+                // Quand on envoie, on arrête aussi de dire qu'on écrit
+                isTyping = false;
+                clearTimeout(typingTimeout);
             }
+        });
+
+        // B. Indicateur de frappe (NOUVEAU)
+        msgInput.addEventListener("input", function() {
+            // Si on n'est pas déjà marqué comme "en train d'écrire"
+            if (!isTyping) {
+                isTyping = true;
+                
+                // On envoie le signal au serveur
+                if (stompClient) {
+                    const typingMsg = { 
+                        sender: currentUserGlobal, 
+                        type: 'TYPING' 
+                    };
+                    stompClient.send("/app/chat.typing", {}, JSON.stringify(typingMsg));
+                }
+            }
+
+            // On remet le timer à zéro à chaque frappe
+            clearTimeout(typingTimeout);
+
+            // Après 2 secondes sans frappe, on considère qu'on a arrêté
+            typingTimeout = setTimeout(() => {
+                isTyping = false;
+            }, 2000);
         });
     }
 });
@@ -164,6 +193,26 @@ function onMessageReceived(msg) {
         }
         showChatMessage(msg);
     }
+    else if (msg.type === 'TYPING') {
+        if (msg.from === currentUserGlobal) return; // On n'affiche pas si c'est moi qui tape
+        showTypingIndicator(msg.sender);
+    }
+}
+
+function showTypingIndicator(username) {
+    const indicator = document.getElementById("typing-indicator");
+    if (!indicator) return;
+
+    // Affiche le texte
+    indicator.innerText = `${username} est en train d'écrire...`;
+    
+    // Annule le précédent effacement s'il y en a un
+    if (typingDisplayTimeout) clearTimeout(typingDisplayTimeout);
+
+    // Efface le texte après 3 secondes si on ne reçoit pas de nouveau signal
+    typingDisplayTimeout = setTimeout(() => {
+        indicator.innerText = "";
+    }, 3000);
 }
 
 // ... Le reste du fichier (showChatMessage, addUserToSidebar...) reste identique ...

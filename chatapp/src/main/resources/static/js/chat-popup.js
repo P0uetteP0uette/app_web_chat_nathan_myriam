@@ -1,17 +1,22 @@
 /* ================================================================
-   LOGIQUE CHAT PRIVÉ + GESTION SONORE (CORRIGÉ)
+   LOGIQUE CHAT PRIVÉ + GESTION SONORE + INDICATEUR DE FRAPPE
    ================================================================ */
 
 let currentFriend = null;
 let popupStompClient = null;
 let pendingMessages = {}; 
 
+// --- VARIABLES INDICATEUR DE FRAPPE (Nouveau) ---
+let isPrivateTyping = false;
+let privateTypingTimeout = null;     // Timer pour l'envoi
+let privateDisplayTimeout = null;    // Timer pour l'affichage
+
 // --- GESTION DU SON ---
 // On récupère la préférence de l'utilisateur (par défaut : ON)
 let soundEnabled = localStorage.getItem("chatSoundEnabled") !== "false";
 
 document.addEventListener("DOMContentLoaded", function() {
-    // 1. Initialiser le bouton de son (si on est sur l'accueil)
+    // 1. Initialiser le bouton de son
     updateSoundButtonUI();
 
     const savedFriend = localStorage.getItem("openChatFriend");
@@ -27,6 +32,37 @@ document.addEventListener("DOMContentLoaded", function() {
         console.log("🔌 Popup : Mode Autonome (Connexion manuelle)");
         connectStandalone();
     }
+
+    // 3. GESTION DE LA FRAPPE (DETECTEUR)
+    const popupInput = document.getElementById("popup-chat-input");
+    if (popupInput) {
+        popupInput.addEventListener("input", function() {
+            // Si aucun ami sélectionné, on ne fait rien
+            if (!currentFriend) return;
+
+            // Si on n'est pas déjà marqué comme "écrivant", on envoie le signal
+            if (!isPrivateTyping) {
+                isPrivateTyping = true;
+                sendPrivateTypingSignal();
+            }
+
+            // On reset le timer d'arrêt
+            clearTimeout(privateTypingTimeout);
+            
+            // Après 2 secondes sans frappe, on considère qu'on a arrêté
+            privateTypingTimeout = setTimeout(() => {
+                isPrivateTyping = false;
+            }, 2000);
+        });
+
+        // Si on appuie sur Entrée, on arrête direct l'indicateur
+        popupInput.addEventListener("keydown", function(e) {
+            if (e.key === "Enter") {
+                isPrivateTyping = false;
+                clearTimeout(privateTypingTimeout);
+            }
+        });
+    }
 });
 
 // --- FONCTIONS SONORES (SÉCURISÉES) ---
@@ -37,29 +73,24 @@ function toggleSound() {
     updateSoundButtonUI(); // On change l'icône
 }
 
-// C'est ici que ça plantait ("Cannot read properties of null")
 function updateSoundButtonUI() {
     const btnIcon = document.getElementById("sound-icon");
     const btnText = document.getElementById("sound-text");
     const btn = document.getElementById("toggle-sound-btn");
     
-    // On met à jour chaque élément SÉPARÉMENT et seulement s'il existe
     if (btnIcon) {
         btnIcon.className = soundEnabled ? "bi bi-volume-up-fill" : "bi bi-volume-mute-fill";
     }
-
     if (btnText) {
         btnText.innerText = soundEnabled ? "Son: ON" : "Son: OFF";
     }
-
     if (btn) {
-        // La ligne qui faisait planter le script est maintenant protégée
         btn.style.opacity = soundEnabled ? "1" : "0.6";
     }
 }
 
 function playNotificationSound() {
-    if (!soundEnabled) return; // Si muet, on ne fait RIEN.
+    if (!soundEnabled) return; 
 
     const audio = document.getElementById("notification-sound");
     if (audio) {
@@ -73,7 +104,7 @@ function playNotificationSound() {
 function connectStandalone() {
     var socket = new SockJS('/chat-websocket');
     popupStompClient = Stomp.over(socket);
-    // popupStompClient.debug = null; // Décommenter pour cacher les logs
+    // popupStompClient.debug = null; 
     popupStompClient.connect({}, function () {
         popupStompClient.subscribe('/user/queue/private', function (payload) {
             onPopupMessageReceived(JSON.parse(payload.body));
@@ -82,19 +113,28 @@ function connectStandalone() {
 }
 
 function onPopupMessageReceived(message) {
-    // 1. SÉCURITÉ ANTI-ÉCHO : Si c'est MOI qui ai envoyé, STOP.
-    // On vérifie currentUserGlobal (défini dans le HTML ou chat.js)
+    // 1. SÉCURITÉ ANTI-ÉCHO
     if (typeof currentUserGlobal !== 'undefined' && message.sender === currentUserGlobal) {
         return; 
     }
 
-    // 2. JOUE LE SON (Seulement si ce n'est pas moi)
-    playNotificationSound();
+    // --- GESTION "EN TRAIN D'ÉCRIRE" ---
+    if (message.type === 'TYPING') {
+        // Si la fenêtre est ouverte sur cette personne, on affiche l'indicateur
+        if (currentFriend && message.sender === currentFriend) {
+            showPrivateTypingIndicator();
+        }
+        return; // STOP ICI
+    }
+
+    // 2. MESSAGE STANDARD
+    playNotificationSound(); // Son joué car ce n'est pas moi
 
     let conversationPartner = (message.sender === currentUserGlobal) ? message.recipient : message.sender;
     
-    // Si la fenêtre est ouverte sur cette personne, on affiche direct
+    // Si la fenêtre est ouverte sur cette personne
     if (currentFriend && currentFriend === conversationPartner) {
+        hidePrivateTypingIndicator(); // On efface "écrit..." car le vrai message est là
         displayMessage(message);
         scrollToBottom();
         return;
@@ -108,13 +148,35 @@ function onPopupMessageReceived(message) {
     showNotification(conversationPartner);
 }
 
+// --- FONCTIONS D'ENVOI ---
+
+// Envoi du signal "Je suis en train d'écrire"
+function sendPrivateTypingSignal() {
+    // On cherche quel client WebSocket est actif (Main ou Popup)
+    let activeClient = null;
+    if (typeof stompClient !== 'undefined' && stompClient && stompClient.connected) {
+        activeClient = stompClient;
+    } else if (popupStompClient && popupStompClient.connected) {
+        activeClient = popupStompClient;
+    }
+
+    if (activeClient && currentFriend) {
+        const msg = { 
+            sender: currentUserGlobal, 
+            recipient: currentFriend, 
+            type: 'TYPING' 
+        };
+        activeClient.send("/app/chat.private.typing", {}, JSON.stringify(msg));
+    }
+}
+
 function sendPrivateMessage() {
     const input = document.getElementById("popup-chat-input");
     const content = input.value.trim();
     
     if (!content || !currentFriend) return;
 
-    // Affichage immédiat (Visuel seulement, pas de son ici)
+    // Affichage immédiat
     const tempMsg = {
         sender: currentUserGlobal,
         content: content,
@@ -144,6 +206,34 @@ function sendPrivateMessage() {
     }
 }
 
+// --- UI & AFFICHAGE ---
+
+// Affiche "Machin écrit..."
+function showPrivateTypingIndicator() {
+    const indicator = document.getElementById("private-typing-indicator");
+    if (!indicator) return; // Si la div n'est pas dans le HTML, on sort
+
+    indicator.innerText = "En train d'écrire...";
+    indicator.style.display = "block";
+
+    // On efface le timer précédent s'il y en a un
+    if (privateDisplayTimeout) clearTimeout(privateDisplayTimeout);
+
+    // On efface le texte après 3.5 secondes si pas de nouveau signal
+    privateDisplayTimeout = setTimeout(() => {
+        hidePrivateTypingIndicator();
+    }, 3500);
+}
+
+// Cache "Machin écrit..."
+function hidePrivateTypingIndicator() {
+    const indicator = document.getElementById("private-typing-indicator");
+    if (indicator) {
+        indicator.innerText = "";
+        // indicator.style.display = "none"; // Optionnel
+    }
+}
+
 function openChat(friendName) {
     currentFriend = friendName;
     const nameLabel = document.getElementById("popup-friend-name");
@@ -153,6 +243,8 @@ function openChat(friendName) {
     if(win) win.style.display = "block";
 
     localStorage.setItem("openChatFriend", friendName);
+    
+    hidePrivateTypingIndicator(); // Reset indicateur à l'ouverture
     loadMessages();
     
     if (pendingMessages[friendName] && pendingMessages[friendName].length > 0) {

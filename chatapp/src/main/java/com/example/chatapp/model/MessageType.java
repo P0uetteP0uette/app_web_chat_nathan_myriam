@@ -7,5 +7,6 @@ public enum MessageType {
     CHAT,   // Message textuel standard
     JOIN,   // Connexion d'un utilisateur
     LEAVE,  // Déconnexion d'un utilisateur
-    STATUS  // Changement de statut (ex: Occupé)
+    STATUS,  // Changement de statut (ex: Occupé)
+    TYPING   // Indication que l'utilisateur est en train de taper un message
 }
