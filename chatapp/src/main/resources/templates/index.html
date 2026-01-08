@@ -5,6 +5,7 @@
     <title>Chat App</title>
     <link rel="stylesheet" href="css/main.css">
     <link rel="stylesheet" href="/css/chat-popup.css">
+    <script src="https://cdn.jsdelivr.net/npm/picmo@5.8.1/dist/umd/index.js"></script>
 </head>
 <body>
 
@@ -56,9 +57,18 @@
         <div id="message-input-area">
             <div id="typing-indicator" style="height: 20px; font-size: 0.8em; color: #888; font-style: italic; margin-left: 10px;">
             </div>
-            <div class="input-wrapper">
-                <input type="text" id="message" placeholder="Envoyer un message..." autocomplete="off" />
-                <button id="send-btn" onclick="sendMessage()">➤</button>
+            
+            <div class="input-wrapper" style="position: relative; display: flex; align-items: center; background: #fff; padding: 5px; border-radius: 25px; border: 1px solid #ddd;">
+                
+                <div id="emoji-picker-container" style="display: none; position: absolute; bottom: 100%; margin-bottom: 15px; left: 0; z-index: 1000; box-shadow: 0 4px 12px rgba(0,0,0,0.15); border-radius: 8px; background-color: white;"></div>
+
+                <button id="emoji-btn" type="button" style="font-size: 1.5em; background: none; border: none; cursor: pointer; padding: 5px 10px; display: flex; align-items: center;">😀</button>
+
+                <div style="height: 25px; width: 1px; background-color: #ccc; margin-left: 5px; margin-right: 10px;"></div>
+
+                <input type="text" id="message" placeholder="Envoyer un message..." autocomplete="off" style="flex-grow: 1; border: none; outline: none; background: transparent; padding: 5px;" />
+                
+                <button id="send-btn" onclick="sendMessage()" style="border: none; background: #3498db; color: white; width: 40px; height: 40px; border-radius: 50%; margin-left: 5px; cursor: pointer; font-size: 1.2em; display: flex; align-items: center; justify-content: center; padding-left: 5px;">➤</button>
             </div>
         </div>
 

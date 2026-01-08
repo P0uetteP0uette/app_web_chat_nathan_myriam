@@ -1,5 +1,5 @@
 /* ================================================================
-   CHAT GÉNÉRAL (Main Controller) - VERSION AVEC DESIGN MODIFIÉ
+   CHAT GÉNÉRAL (Main Controller) - VERSION DEBUGGING
    ================================================================ */
 
 let stompClient = null;
@@ -70,7 +70,6 @@ document.addEventListener("DOMContentLoaded", function() {
     // 3. WebSocket
     const socket = new SockJS('/chat-websocket');
     stompClient = Stomp.over(socket);
-    // stompClient.debug = null;
 
     stompClient.connect({}, () => {
         stompClient.subscribe('/topic/public', (payload) => {
@@ -90,9 +89,11 @@ document.addEventListener("DOMContentLoaded", function() {
         stompClient.send("/app/chat.addUser", {}, JSON.stringify({}));
     });
 
-    // 4. Gestion de la zone de saisie
+    // 4. Gestion de la zone de saisie (Input + Emojis)
     const msgInput = document.getElementById("message");
+    
     if(msgInput) {
+        // A. Gestion Entrée + Typing Indicator
         msgInput.addEventListener("keydown", function(event) {
             if (event.key === "Enter") {
                 event.preventDefault();
@@ -106,18 +107,47 @@ document.addEventListener("DOMContentLoaded", function() {
             if (!isTyping) {
                 isTyping = true;
                 if (stompClient) {
-                    const typingMsg = {
-                        sender: currentUserGlobal,
-                        type: 'TYPING'
-                    };
+                    const typingMsg = { sender: currentUserGlobal, type: 'TYPING' };
                     stompClient.send("/app/chat.typing", {}, JSON.stringify(typingMsg));
                 }
             }
             clearTimeout(typingTimeout);
-            typingTimeout = setTimeout(() => {
-                isTyping = false;
-            }, 2000);
+            typingTimeout = setTimeout(() => { isTyping = false; }, 2000);
         });
+
+        // B. GESTION DU SÉLECTEUR D'EMOJIS
+        const emojiBtn = document.getElementById('emoji-btn');
+        const emojiContainer = document.getElementById('emoji-picker-container');
+
+        if (emojiBtn && emojiContainer && window.picmo) {
+            const picker = picmo.createPicker({
+                rootElement: emojiContainer,
+                locale: 'fr',
+                autoFocus: 'search',
+                theme: 'light'
+            });
+
+            emojiBtn.addEventListener('click', function(e) {
+                e.stopPropagation(); 
+                if (emojiContainer.style.display === 'none' || emojiContainer.style.display === '') {
+                    emojiContainer.style.display = 'block';
+                } else {
+                    emojiContainer.style.display = 'none';
+                }
+            });
+
+            picker.addEventListener('emoji:select', function(event) {
+                msgInput.value += event.emoji;
+                msgInput.focus();
+                msgInput.dispatchEvent(new Event('input')); 
+            });
+
+            document.addEventListener('click', function(e) {
+                if (!emojiBtn.contains(e.target) && !emojiContainer.contains(e.target)) {
+                    emojiContainer.style.display = 'none';
+                }
+            });
+        }
     }
 });
 
@@ -127,9 +157,19 @@ function sendMessage() {
 
     if (content && stompClient) {
         const chatMessage = { content: content, type: 'CHAT' };
+        
+        // --- 🔍 DEBUG LOGS AJOUTÉS ICI ---
+        console.group("🔥🔥🔥 [DEBUG ENVOI]");
+        console.log("1. Texte brut:", content);
+        console.log("2. Objet JSON à envoyer:", JSON.stringify(chatMessage));
+        console.groupEnd();
+        // ---------------------------------
+
         stompClient.send("/app/sendMessage", {}, JSON.stringify(chatMessage));
         input.value = '';
         input.focus();
+        const emojiContainer = document.getElementById('emoji-picker-container');
+        if (emojiContainer) emojiContainer.style.display = 'none';
     }
 }
 
@@ -143,6 +183,13 @@ function sendStatusChange() {
 }
 
 function onMessageReceived(msg) {
+    // --- 🔍 DEBUG LOGS RÉCEPTION ---
+    if (msg.type === 'CHAT') {
+        console.log("📥 [DEBUG REÇU] Message CHAT arrivé :", msg);
+        console.log("   -> Contenu :", msg.content);
+    }
+    // ------------------------------
+
     if (msg.type === 'JOIN') {
         userStatuses[msg.from] = "ONLINE";
         addUserToSidebar(msg.from, "ONLINE");
@@ -186,15 +233,13 @@ function timeToMinutes(timeStr) {
 }
 
 // =================================================================
-// 👇 FONCTION MODIFIÉE POUR LE DESIGN (ALIGNEMENT ET COULEURS) 👇
+// 👇 FONCTION CORRIGÉE POUR LES EMOJIS (Utilisation de textContent) 👇
 // =================================================================
 function showChatMessage(msg) {
     const box = document.getElementById("chat-box");
     if (!box) return;
 
     const senderName = msg.from || msg.sender || "Inconnu";
-    // >>> NOUVEAU : On vérifie si c'est mon message <<<
-    // (Assure-toi que currentUserGlobal est bien défini quelque part dans ton HTML)
     const isMe = (senderName === currentUserGlobal);
 
     let displayTime = msg.time;
@@ -203,10 +248,8 @@ function showChatMessage(msg) {
     }
     if (!displayTime) displayTime = "";
 
-    const safeContent = escapeHtml(msg.content);
     const currentMinutes = timeToMinutes(displayTime);
     const timeDiff = currentMinutes - lastTimeMinutes;
-
     let shouldGroup = (senderName === lastSender) && (timeDiff >= 0 && timeDiff < 5);
 
     // --- CAS 1 : REGROUPEMENT DE MESSAGES ---
@@ -216,12 +259,14 @@ function showChatMessage(msg) {
             const bubble = lastElement.querySelector(".chat-bubble");
             if (bubble) {
                 const newTextLine = document.createElement("div");
-                // >>> MODIFIÉ : La couleur de la ligne de séparation et du texte dépend de isMe <<<
                 const borderColor = isMe ? "rgba(255,255,255,0.2)" : "rgba(0,0,0,0.05)";
                 const textColor = isMe ? "white" : "inherit";
 
                 newTextLine.style.cssText = `margin-top:4px; padding-top:4px; border-top:1px solid ${borderColor}; color: ${textColor};`;
-                newTextLine.innerHTML = safeContent;
+                
+                // Utilisation de textContent pour la sécurité et les emojis
+                newTextLine.textContent = msg.content;
+
                 bubble.appendChild(newTextLine);
                 lastTimeMinutes = currentMinutes;
                 box.scrollTop = box.scrollHeight;
@@ -231,40 +276,33 @@ function showChatMessage(msg) {
     }
 
     // --- CAS 2 : NOUVEAU BLOC DE MESSAGE ---
-
-    // >>> DÉFINITION DES STYLES DYNAMIQUES SELON L'EXPÉDITEUR <<<
     let flexDir, avatarMargin, textAlign, bubbleBg, bubbleColor, bubbleBorder, borderRadius;
 
     if (isMe) {
-        // C'EST MOI : Alignement droite, Bleu foncé, Texte blanc, Avatar à droite
         flexDir = "row-reverse";
-        avatarMargin = "margin-left: 10px;"; // Marge à gauche de l'avatar
+        avatarMargin = "margin-left: 10px;";
         textAlign = "right";
-        bubbleBg = "#3b5998"; // Le bleu demandé
+        bubbleBg = "#3b5998";
         bubbleColor = "white";
-        bubbleBorder = "1px solid #2a4073"; // Bordure légèrement plus foncée
-        borderRadius = "12px 12px 2px 12px"; // Coin carré en bas à droite
+        bubbleBorder = "1px solid #2a4073";
+        borderRadius = "12px 12px 2px 12px";
     } else {
-        // C'EST UN AUTRE : Alignement gauche (défaut), Gris clair, Texte noir
         flexDir = "row";
-        avatarMargin = "margin-right: 10px;"; // Marge à droite de l'avatar
+        avatarMargin = "margin-right: 10px;";
         textAlign = "left";
         bubbleBg = "#f1f1f1";
         bubbleColor = "black";
         bubbleBorder = "1px solid #ddd";
-        borderRadius = "12px 12px 12px 2px"; // Coin carré en bas à gauche
+        borderRadius = "12px 12px 12px 2px";
     }
 
     const div = document.createElement("div");
     div.className = "message-group";
     div.style.marginBottom = "15px";
-    // Ajout d'un clear pour éviter les soucis de flottement si jamais
     div.style.clear = "both";
 
     const avatarUrl = `https://api.dicebear.com/7.x/bottts/svg?seed=${senderName}`;
 
-    // >>> APPLICATION DES STYLES DANS LE HTML <<<
-    // Note l'utilisation de flex-direction, text-align, background-color, color, etc.
     div.innerHTML = `
         <div style="display: flex; align-items: flex-start; flex-direction: ${flexDir};">
             <img src="${avatarUrl}" alt="Avatar" style="width: 40px; height: 40px; border-radius: 50%; ${avatarMargin}; border: 2px solid #eee;">
@@ -272,22 +310,19 @@ function showChatMessage(msg) {
                 <div style="font-size: 0.8em; color: #555; margin-bottom: 2px; margin-left: 2px;">
                     <b>${senderName}</b> <span style="color: #aaa;">[${displayTime}]</span>
                 </div>
-                <div class="chat-bubble" style="background-color: ${bubbleBg}; color: ${bubbleColor}; border: ${bubbleBorder}; padding: 10px 15px; border-radius: ${borderRadius}; position: relative; word-wrap: break-word; text-align: left;">
-                    ${safeContent}
-                </div>
+                <div class="chat-bubble" style="background-color: ${bubbleBg}; color: ${bubbleColor}; border: ${bubbleBorder}; padding: 10px 15px; border-radius: ${borderRadius}; position: relative; word-wrap: break-word; text-align: left;"></div>
             </div>
         </div>
     `;
+
+    const bubble = div.querySelector(".chat-bubble");
+    bubble.textContent = msg.content; 
 
     box.appendChild(div);
     lastSender = senderName;
     lastTimeMinutes = currentMinutes;
     box.scrollTop = box.scrollHeight;
 }
-// =================================================================
-// 👆 FIN DE LA FONCTION MODIFIÉE 👆
-// =================================================================
-
 
 function showSystemMessage(text) {
     const box = document.getElementById("chat-box");
