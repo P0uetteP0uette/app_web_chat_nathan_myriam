@@ -4,6 +4,8 @@ import com.example.chatapp.model.ChatMessage;
 import com.example.chatapp.model.Message;
 import com.example.chatapp.model.MessageType;
 import com.example.chatapp.repository.MessageRepository;
+import com.example.chatapp.service.FriendshipService;
+
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.messaging.handler.annotation.MessageMapping;
 import org.springframework.messaging.handler.annotation.Payload;
@@ -14,6 +16,7 @@ import org.springframework.stereotype.Controller;
 import org.springframework.ui.Model;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.ResponseBody;
+import org.springframework.web.util.HtmlUtils; // <--- IMPORT POUR LA SÉCURITÉ XSS
 
 import java.security.Principal;
 import java.time.LocalDateTime;
@@ -43,6 +46,9 @@ public class ChatController {
 
     @Autowired
     private SimpMessagingTemplate simpMessagingTemplate;
+
+    @Autowired
+    private FriendshipService friendshipService;
 
     /**
      * Affiche la page d'accueil de l'application.
@@ -78,6 +84,12 @@ public class ChatController {
         String username = principal.getName();
         String time = getCurrentTime();
 
+        // 🛡️ SÉCURITÉ XSS (Clean Code) : On nettoie le message avant tout traitement
+        if (chatMessage.getContent() != null) {
+            String cleanContent = HtmlUtils.htmlEscape(chatMessage.getContent());
+            chatMessage.setContent(cleanContent);
+        }
+
         // Préparation du message pour le WebSocket (Affichage immédiat)
         chatMessage.setType(MessageType.CHAT);
         chatMessage.setFrom(username);
@@ -86,6 +98,7 @@ public class ChatController {
         // --- CORRECTION IMPORTANTE ---
         // Pour la BDD, on utilise le nouveau constructeur : Message(sender, recipient, content)
         // On met 'null' en recipient pour dire que c'est PUBLIC
+        // Note: le content est déjà nettoyé (sanitized) juste au-dessus
         Message dbMessage = new Message(username, null, chatMessage.getContent());
         
         messageRepository.save(dbMessage); 
@@ -98,11 +111,26 @@ public class ChatController {
      * Gère l'envoi de messages privés (1-to-1).
      * Le message est envoyé spécifiquement au destinataire et renvoyé à l'expéditeur pour confirmation visuelle.
      */
+
     @MessageMapping("/chat.private")
     public void sendPrivateMessage(@Payload ChatMessage message, Principal principal) {
         String sender = principal.getName();
         String recipient = message.getRecipient();
         String time = getCurrentTime();
+
+        // --- 🔒 VÉRIFICATION AMITIÉ (Exigence Itération 3) ---
+        // Avant tout traitement, on vérifie si l'expéditeur et le destinataire sont amis.
+        // Si ta méthode s'appelle autrement (ex: checkFriendship), change le nom ici.
+        if (!friendshipService.areFriends(sender, recipient)) {
+            System.out.println("⛔ ERREUR SÉCURITÉ : " + sender + " a tenté d'écrire à " + recipient + " sans être ami.");
+            return; // 🛑 ON ARRÊTE TOUT ICI. Le message n'est ni sauvegardé, ni envoyé.
+        }
+        // ----------------------------------------------------
+
+        // 🛡️ SÉCURITÉ XSS (Clean Code) : On nettoie le message privé aussi
+        String rawContent = message.getContent();
+        String sanitizedContent = (rawContent != null) ? HtmlUtils.htmlEscape(rawContent) : "";
+        message.setContent(sanitizedContent); // On met à jour l'objet entrant
 
         System.out.println("📨 Message privé reçu de: " + sender + " vers: " + recipient);
 
@@ -110,13 +138,13 @@ public class ChatController {
         ChatMessage wsMessage = new ChatMessage();
         wsMessage.setSender(sender);        
         wsMessage.setRecipient(recipient);  
-        wsMessage.setContent(message.getContent());
+        wsMessage.setContent(sanitizedContent); // Contenu sécurisé
         wsMessage.setType(MessageType.CHAT);
         wsMessage.setTime(time);
         wsMessage.setTimestamp(LocalDateTime.now()); 
 
         // 2. SAUVEGARDER EN BDD
-        Message dbMessage = new Message(sender, recipient, message.getContent());
+        Message dbMessage = new Message(sender, recipient, sanitizedContent);
         messageRepository.save(dbMessage);
         System.out.println("💾 Message sauvegardé en BDD");
 

@@ -3,6 +3,8 @@ package com.example.chatapp.model;
 import jakarta.persistence.*;
 import java.time.LocalDateTime;
 
+import com.example.chatapp.service.MessageEncryptor;
+
 /**
  * Entité JPA représentant un message stocké en base de données.
  * Mise à jour pour supporter les messages privés (Expéditeur + Destinataire).
@@ -13,6 +15,7 @@ public class Message {
 
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
+    @Convert(converter = MessageEncryptor.class)
     private Long id;
 
     private String sender;    // Pseudo de l'expéditeur
