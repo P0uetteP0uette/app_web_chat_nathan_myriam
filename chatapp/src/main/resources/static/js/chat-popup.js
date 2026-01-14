@@ -295,22 +295,31 @@ function displayMessage(msg) {
         else if (msg.time) timeStr = msg.time;
     } catch(e) {}
 
+    // 1. Création du conteneur avec la NOUVELLE classe
     const container = document.createElement("div");
-    container.className = "msg-container " + (isMe ? "sent" : "received");
+    // "popup-msg-container" au lieu de "msg-container"
+    container.className = "popup-msg-container " + (isMe ? "sent" : "received");
+    
+    // On ajoute aussi une classe helper pour la couleur
     if (isMe) container.classList.add("message-sent");
     else container.classList.add("message-received");
 
+    // 2. L'heure (avec nouvelle classe)
     const timeDiv = document.createElement("div");
-    timeDiv.className = "msg-time";
+    timeDiv.className = "popup-msg-time"; // Au lieu de msg-time
     timeDiv.innerText = timeStr;
 
+    // 3. La bulle (avec NOUVELLE classe)
     const bubbleDiv = document.createElement("div");
-    bubbleDiv.className = "message-bubble";
+    bubbleDiv.className = "popup-bubble"; // Au lieu de message-bubble <--- C'EST CA QUI SAUVE TOUT
     bubbleDiv.innerText = msg.content;
 
+    // Ordre d'ajout (Heure en premier ou dernier selon tes goûts, ici comme avant)
     container.appendChild(timeDiv);
     container.appendChild(bubbleDiv);
+    
     chatBody.appendChild(container);
+    scrollToBottom();
 }
 
 function scrollToBottom() {

@@ -25,8 +25,8 @@ public class UserService {
     @Autowired
     private PasswordEncoder passwordEncoder;
 
-    // Regex simplifiée pour le dév
-    private static final String PASSWORD_REGEX = "^.{4,}$";
+    // Regex pour un mot de passe sécurisé
+    private static final String PASSWORD_REGEX = "^(?=.*[0-9])(?=.*[a-z])(?=.*[A-Z])(?=.*[@#$%^&+=!.*])(?=\\S+$).{8,}$";
     private static final Pattern PATTERN = Pattern.compile(PASSWORD_REGEX);
 
     /**
@@ -39,9 +39,9 @@ public class UserService {
             throw new Exception("Ce pseudo est déjà pris !");
         }
 
-        // 2. Vérif mdp
+        // 2. Vérif mdp avec message d'erreur
         if (!PATTERN.matcher(password).matches()) {
-            throw new Exception("Le mot de passe doit faire au moins 4 caractères.");
+            throw new Exception("Le mot de passe doit contenir au moins 8 caractères, une majuscule, une minuscule, un chiffre et un caractère spécial.");
         }
 
         // 3. Création de l'utilisateur (INACTIF par défaut)

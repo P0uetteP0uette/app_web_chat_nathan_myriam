@@ -1,5 +1,6 @@
 /* ================================================================
-   CHAT GÉNÉRAL (Main Controller) - VERSION DEBUGGING
+   CHAT GÉNÉRAL (Main Controller) - VERSION "EXPÉRIENCE UTILISATEUR"
+   (Avec Mentions, Titre Dynamique et Scroll Button)
    ================================================================ */
 
 let stompClient = null;
@@ -11,6 +12,10 @@ let lastTimeMinutes = -1;
 let isTyping = false;
 let typingTimeout = null;
 let typingDisplayTimeout = null;
+
+// --- VARIABLES GLOBALES (NOUVEAU) ---
+let unreadCount = 0;
+let originalTitle = document.title;
 
 // --- GESTION DU SON ---
 let isSoundOn = localStorage.getItem("chatSound") !== "false";
@@ -50,7 +55,31 @@ function playNotificationSound() {
 document.addEventListener("DOMContentLoaded", function() {
     updateSoundIcon();
 
-    // 1. Charger Users
+    // --- 1. GESTION DU TITRE D'ONGLET (NOUVEAU) ---
+    // Quand l'utilisateur revient sur la page, on remet le titre normal
+    document.addEventListener("visibilitychange", function() {
+        if (document.visibilityState === "visible") {
+            unreadCount = 0;
+            document.title = originalTitle;
+        }
+    });
+
+    // --- 2. GESTION DU SCROLL BUTTON (NOUVEAU) ---
+    const chatBox = document.getElementById("chat-box");
+    const scrollBtn = document.getElementById("scroll-down-btn");
+
+    if (chatBox) {
+        chatBox.addEventListener("scroll", function() {
+            // Si on remonte de plus de 100px, on affiche le bouton
+            if (chatBox.scrollTop < (chatBox.scrollHeight - chatBox.clientHeight - 100)) {
+                if(scrollBtn) scrollBtn.style.display = "block";
+            } else {
+                if(scrollBtn) scrollBtn.style.display = "none";
+            }
+        });
+    }
+
+    // 3. Charger Users
     fetch('/api/users')
         .then(response => response.json())
         .then(usersMap => {
@@ -60,14 +89,14 @@ document.addEventListener("DOMContentLoaded", function() {
             }
         });
 
-    // 2. Charger Historique
+    // 4. Charger Historique
     fetch('/api/history')
         .then(response => response.json())
         .then(messages => {
             messages.forEach(msg => showChatMessage(msg));
         });
 
-    // 3. WebSocket
+    // 5. WebSocket
     const socket = new SockJS('/chat-websocket');
     stompClient = Stomp.over(socket);
 
@@ -89,7 +118,7 @@ document.addEventListener("DOMContentLoaded", function() {
         stompClient.send("/app/chat.addUser", {}, JSON.stringify({}));
     });
 
-    // 4. Gestion de la zone de saisie (Input + Emojis)
+    // 6. Gestion de la zone de saisie (Input + Emojis)
     const msgInput = document.getElementById("message");
     
     if(msgInput) {
@@ -157,14 +186,6 @@ function sendMessage() {
 
     if (content && stompClient) {
         const chatMessage = { content: content, type: 'CHAT' };
-        
-        // --- 🔍 DEBUG LOGS AJOUTÉS ICI ---
-        console.group("🔥🔥🔥 [DEBUG ENVOI]");
-        console.log("1. Texte brut:", content);
-        console.log("2. Objet JSON à envoyer:", JSON.stringify(chatMessage));
-        console.groupEnd();
-        // ---------------------------------
-
         stompClient.send("/app/sendMessage", {}, JSON.stringify(chatMessage));
         input.value = '';
         input.focus();
@@ -183,12 +204,12 @@ function sendStatusChange() {
 }
 
 function onMessageReceived(msg) {
-    // --- 🔍 DEBUG LOGS RÉCEPTION ---
-    if (msg.type === 'CHAT') {
-        console.log("📥 [DEBUG REÇU] Message CHAT arrivé :", msg);
-        console.log("   -> Contenu :", msg.content);
+    // --- MISE A JOUR DU TITRE D'ONGLET (NOUVEAU) ---
+    if (document.hidden) {
+        unreadCount++;
+        document.title = `(${unreadCount}) Nouveaux messages`;
     }
-    // ------------------------------
+    // -----------------------------------------------
 
     if (msg.type === 'JOIN') {
         userStatuses[msg.from] = "ONLINE";
@@ -232,9 +253,23 @@ function timeToMinutes(timeStr) {
     return parseInt(parts[0]) * 60 + parseInt(parts[1]);
 }
 
-// =================================================================
-// 👇 FONCTION CORRIGÉE POUR LES EMOJIS (Utilisation de textContent) 👇
-// =================================================================
+// Fonction utilitaire pour traiter le texte (Sécurité + Mentions)
+function formatMessageContent(rawContent) {
+    // 1. Sécuriser le texte (empêche le HTML malveillant mais garde les emojis)
+    let safeContent = escapeHtml(rawContent);
+
+    // 2. Transformer les @Pseudo en span coloré (NOUVEAU)
+    safeContent = safeContent.replace(/@(\w+)/g, function(match, username) {
+        if (username === currentUserGlobal) {
+            return `<span class="mention mention-me">@${username}</span>`;
+        } else {
+            return `<span class="mention">@${username}</span>`;
+        }
+    });
+
+    return safeContent;
+}
+
 function showChatMessage(msg) {
     const box = document.getElementById("chat-box");
     if (!box) return;
@@ -264,8 +299,8 @@ function showChatMessage(msg) {
 
                 newTextLine.style.cssText = `margin-top:4px; padding-top:4px; border-top:1px solid ${borderColor}; color: ${textColor};`;
                 
-                // Utilisation de textContent pour la sécurité et les emojis
-                newTextLine.textContent = msg.content;
+                // Utilisation de innerHTML avec contenu sécurisé pour afficher les mentions
+                newTextLine.innerHTML = formatMessageContent(msg.content);
 
                 bubble.appendChild(newTextLine);
                 lastTimeMinutes = currentMinutes;
@@ -315,13 +350,21 @@ function showChatMessage(msg) {
         </div>
     `;
 
+    // Utilisation de innerHTML avec contenu sécurisé pour afficher les mentions
     const bubble = div.querySelector(".chat-bubble");
-    bubble.textContent = msg.content; 
+    bubble.innerHTML = formatMessageContent(msg.content); 
 
     box.appendChild(div);
     lastSender = senderName;
     lastTimeMinutes = currentMinutes;
     box.scrollTop = box.scrollHeight;
+}
+
+function scrollToBottom() {
+    const box = document.getElementById("chat-box");
+    if(box) {
+        box.scrollTop = box.scrollHeight;
+    }
 }
 
 function showSystemMessage(text) {
