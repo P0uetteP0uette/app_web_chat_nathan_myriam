@@ -29,6 +29,12 @@
                             <input type="hidden" name="friendshipId" th:value="${req.id}">
                             <button type="submit" class="btn btn-success btn-sm">Accepter</button>
                         </form>
+                        <form action="/refuse-friend" method="post" style="display:inline-block; margin-left: 5px;">
+                            <input type="hidden" name="friendshipId" th:value="${req.id}" />
+                            <button type="submit" style="background-color: #e74c3c; color: white; border: none; padding: 5px 10px; border-radius: 4px; cursor: pointer;">
+                                Refuser
+                            </button>
+                        </form>
                     </li>
                 </ul>
             </div>

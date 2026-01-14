@@ -15,8 +15,10 @@ import org.springframework.messaging.simp.SimpMessagingTemplate;
 import org.springframework.stereotype.Controller;
 import org.springframework.ui.Model;
 import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.ResponseBody;
-import org.springframework.web.util.HtmlUtils; // <--- IMPORT POUR LA SÉCURITÉ XSS
+import org.springframework.web.util.HtmlUtils;
+import org.springframework.web.bind.annotation.RequestParam;
 
 import java.security.Principal;
 import java.time.LocalDateTime;
@@ -237,6 +239,43 @@ public class ChatController {
         List<Message> messages = messageRepository.findTop50ByRecipientIsNullOrderByTimestampDesc();
         Collections.reverse(messages); 
         return messages;
+    }
+
+    /**
+     * API pour vérifier si deux utilisateurs sont amis.
+     * Appelée par le JavaScript avant d'ouvrir la popup.
+     */
+    @GetMapping("/api/friends/check")
+    @ResponseBody
+    public boolean checkFriendship(@RequestParam String target, Principal principal) {
+        String me = principal.getName();
+        
+        // On utilise ton service existant pour vérifier
+        return friendshipService.areFriends(me, target);
+    }
+
+// Dans ChatController.java
+
+    @PostMapping("/api/friends/add")
+    @ResponseBody
+    public String sendFriendRequest(@RequestParam String receiverUsername, Principal principal) {
+        String sender = principal.getName();
+        boolean success = friendshipService.sendRequest(sender, receiverUsername);
+
+        if (success) {
+            // --- NOUVEAU : NOTIFICATION TEMPS RÉEL ---
+            // On envoie un signal sur le canal "/queue/friends" de l'utilisateur cible
+            simpMessagingTemplate.convertAndSendToUser(
+                receiverUsername, 
+                "/queue/friends", 
+                "NEW_REQUEST" // Le message importe peu, c'est le signal qui compte
+            );
+            // -----------------------------------------
+            
+            return "Demande envoyée avec succès !";
+        } else {
+            return "Erreur : Demande en attente.";
+        }
     }
 
     // --- Méthodes utilitaires ---

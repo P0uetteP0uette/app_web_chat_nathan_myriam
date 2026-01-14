@@ -6,19 +6,22 @@
     <link rel="stylesheet" href="css/auth.css">
 </head>
 <body>
-    <div id="login-page">
-        <h2>Connexion</h2>
+    <div class="container">
         
-        <p th:if="${param.error}" style="color:red">Pseudo ou mot de passe incorrect.</p>
-        <p th:if="${param.success}" style="color:green">Compte créé ! Connectez-vous.</p>
+        <div class="alert-box">
+            <p th:if="${param.error}" class="error-msg">Pseudo ou mot de passe incorrect.</p>
+            <p th:if="${param.activated}" class="success-msg">Compte activé ! Connectez-vous.</p>
+            <p th:if="${success}" class="success-msg" th:text="${success}"></p>
+        </div>
+
+        <h2>Connexion</h2>
 
         <form action="/login" method="post">
-            <input type="text" name="username" placeholder="Pseudo" required><br><br>
-            <input type="password" name="password" placeholder="Mot de passe" required><br><br>
+            <input type="text" name="username" placeholder="Pseudo" required>
+            <input type="password" name="password" placeholder="Mot de passe" required>
             <button type="submit">Se connecter</button>
         </form>
         
-        <br>
         <a href="/register">Pas encore de compte ? S'inscrire</a>
     </div>
 </body>

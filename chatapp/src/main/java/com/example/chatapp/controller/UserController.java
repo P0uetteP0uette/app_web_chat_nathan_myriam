@@ -117,4 +117,16 @@ public class UserController {
         }
         return "redirect:/find-friends?accepted";
     }
+
+    // --- REFUSER UNE DEMANDE (NOUVEAU) ---
+    @PostMapping("/refuse-friend")
+    public String refuseRequest(@RequestParam Long friendshipId) {
+        // On supprime tout simplement la ligne dans la table Friendship
+        friendshipRepository.deleteById(friendshipId);
+        
+        System.out.println(">>> DEMANDE REFUSÉE (ET SUPPRIMÉE) : ID " + friendshipId);
+        
+        // On redirige vers la page avec un petit paramètre pour l'affichage (optionnel)
+        return "redirect:/find-friends?refused";
+    }
 }

@@ -6,17 +6,20 @@
     <link rel="stylesheet" href="css/auth.css">
 </head>
 <body>
-    <div id="login-page"> <h2>Créer un compte</h2>
+    <div class="container">
         
-        <p th:if="${error}" style="color:red" th:text="${error}"></p>
+        <div class="alert-box">
+            <p th:if="${error}" class="error-msg" th:text="${error}"></p>
+        </div>
+
+        <h2>Créer un compte</h2>
 
         <form action="/register" method="post">
-            <input type="text" name="username" placeholder="Choisissez un pseudo" required><br><br>
-            <input type="password" name="password" placeholder="Mot de passe complexe" required><br><br>
+            <input type="text" name="username" placeholder="Choisissez un pseudo" required>
+            <input type="password" name="password" placeholder="Mot de passe complexe" required>
             <button type="submit">S'inscrire</button>
         </form>
         
-        <br>
         <a href="/">Retour à l'accueil</a>
     </div>
 </body>

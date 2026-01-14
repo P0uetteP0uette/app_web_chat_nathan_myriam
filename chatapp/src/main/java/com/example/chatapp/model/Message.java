@@ -15,11 +15,13 @@ public class Message {
 
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
-    @Convert(converter = MessageEncryptor.class)
     private Long id;
 
     private String sender;    // Pseudo de l'expéditeur
     private String recipient; // Pseudo du destinataire (NOUVEAU)
+    
+    @Convert(converter = MessageEncryptor.class)
+    @Column(length = 1000)
     private String content;   // Le texte du message
 
     private LocalDateTime timestamp; // Date précise pour le tri (REMPLACE 'time')

@@ -110,9 +110,18 @@ document.addEventListener("DOMContentLoaded", function() {
             const event = new CustomEvent('private-message-received', { detail: msg });
             window.dispatchEvent(event);
             const sender = msg.sender || msg.from;
-            if (isSoundOn && sender !== currentUserGlobal) {
+            if (document.hidden && msg.type !== 'TYPING') {
+                unreadCount++;
+                document.title = `(${unreadCount}) Nouveaux messages`;
+            }
+            if (isSoundOn && sender !== currentUserGlobal && msg.type === 'CHAT') {
                 playNotificationSound();
             }
+        });
+
+        stompClient.subscribe('/user/queue/friends', function (payload) {
+            console.log("🔔 Nouvelle demande d'ami reçue !");
+            updateFriendRequestBadge(); // On appelle la fonction qui gère l'affichage
         });
 
         stompClient.send("/app/chat.addUser", {}, JSON.stringify({}));
@@ -203,9 +212,55 @@ function sendStatusChange() {
     }
 }
 
+// Fonction pour ajouter +1 à la notification sans recharger
+function updateFriendRequestBadge() {
+    // 1. On cherche le bouton "Trouver des amis"
+    // (On cherche le lien qui contient href="/find-friends")
+    const btn = document.querySelector('a[href="/find-friends"]');
+    
+    if (!btn) return; // Sécurité si on n'est pas sur la bonne page
+
+    // 2. On regarde si la bulle existe déjà
+    let badge = btn.querySelector("span");
+
+    if (badge) {
+        // CAS A : La bulle existe -> On augmente le chiffre
+        let count = parseInt(badge.innerText);
+        badge.innerText = count + 1;
+    } else {
+        // CAS B : Pas de bulle -> On la crée (avec le même style que Thymeleaf)
+        badge = document.createElement("span");
+        badge.innerText = "1";
+        
+        // On copie le style CSS qu'on a mis dans le HTML tout à l'heure
+        badge.style.cssText = `
+            position: absolute;
+            top: -8px;
+            right: -8px;
+            background-color: #e74c3c;
+            color: white;
+            border-radius: 50%;
+            width: 22px;
+            height: 22px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 0.8rem;
+            font-weight: bold;
+            border: 2px solid #2c3e50;
+            box-shadow: 0 2px 5px rgba(0,0,0,0.2);
+        `;
+        
+        btn.appendChild(badge);
+    }
+    
+    // Petit bonus : un son de notification si tu veux !
+    // playNotificationSound(); 
+}
+
 function onMessageReceived(msg) {
     // --- MISE A JOUR DU TITRE D'ONGLET (NOUVEAU) ---
-    if (document.hidden) {
+    if (document.hidden && msg.type === 'CHAT') {
         unreadCount++;
         document.title = `(${unreadCount}) Nouveaux messages`;
     }
@@ -414,7 +469,25 @@ function addUserToSidebar(username, status = 'ONLINE') {
     li.appendChild(text);
 
     li.onclick = function() {
-        if (typeof openChat === "function") openChat(username);
+        console.log("👇 [CHAT] Clic détecté sur :", username);
+        
+        // Test 1 : Est-ce que la fonction existe normalement ?
+        console.log("🔍 [CHAT] Type of openChat :", typeof openChat);
+        
+        // Test 2 : Est-ce qu'elle existe sur window ?
+        console.log("🔍 [CHAT] Type of window.openChat :", typeof window.openChat);
+
+        if (typeof openChat === "function") {
+            console.log("✅ [CHAT] Appel via openChat direct");
+            openChat(username);
+        } 
+        else if (typeof window.openChat === "function") {
+            console.log("✅ [CHAT] Appel via window.openChat (Secours)");
+            window.openChat(username);
+        } 
+        else {
+            console.error("❌ [CHAT] CRITIQUE : La fonction openChat est introuvable !");
+        }
     };
 
     if (username === currentUserGlobal) list.prepend(li);

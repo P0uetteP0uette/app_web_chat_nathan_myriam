@@ -45,4 +45,37 @@ public class FriendshipService {
 
         return false; // Pas de relation trouvée
     }
+
+    /**
+     * Tente d'envoyer une demande d'ami.
+     * Renvoie TRUE si ça a marché, FALSE si c'était impossible (déjà amis, user introuvable...).
+     */
+    public boolean sendRequest(String senderUsername, String receiverUsername) {
+        // 1. On récupère les deux utilisateurs
+        Optional<User> senderOpt = userRepository.findByUsername(senderUsername);
+        Optional<User> receiverOpt = userRepository.findByUsername(receiverUsername);
+
+        // Si l'un des deux n'existe pas, on arrête
+        if (senderOpt.isEmpty() || receiverOpt.isEmpty()) {
+            return false;
+        }
+
+        User sender = senderOpt.get();
+        User receiver = receiverOpt.get();
+
+        // 2. On vérifie si une relation existe déjà (dans un sens OU dans l'autre)
+        boolean alreadyLinked = friendshipRepository.existsByRequesterAndFriend(sender, receiver) 
+                             || friendshipRepository.existsByRequesterAndFriend(receiver, sender);
+
+        if (alreadyLinked) {
+            return false; // Déjà amis ou demande déjà envoyée
+        }
+
+        // 3. On crée la demande
+        // (Le statut par défaut doit être WAITING ou PENDING selon ton constructeur)
+        Friendship newFriendship = new Friendship(sender, receiver);
+        friendshipRepository.save(newFriendship);
+
+        return true;
+    }
 }
