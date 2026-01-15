@@ -3,31 +3,52 @@ package com.example.chatapp.model;
 import java.time.LocalDateTime;
 
 /**
- * Modèle représentant un message dans le chat.
- * Utilisé pour les échanges WebSocket (STOMP) entre le serveur et les clients.
+ * Modèle de données (DTO) représentant un message échangé via WebSocket.
+ *
+ * Cette classe est utilisée pour structurer les données transmises entre le client et le serveur
+ * via le protocole STOMP, que ce soit pour un message de chat, une notification de connexion
+ * ou un changement de statut.
  */
 public class ChatMessage {
     
+    /** Type de l'événement (CHAT, JOIN, LEAVE, TYPING, STATUS). */
     private MessageType type;
-    private String content;
-    private String from;      // Pour les messages publics (compatibilité)
-    private String sender;    // Pour les messages privés
-    private String recipient; // Pour les messages privés
-    private String time;      // Format HH:mm
-    private LocalDateTime timestamp; // Timestamp complet
 
-    // Constructeurs
+    /** Le contenu textuel du message. */
+    private String content;
+
+    /** Expéditeur (utilisé pour la compatibilité avec certains clients). */
+    private String from;
+
+    /** Expéditeur (champ principal). */
+    private String sender;
+
+    /** Destinataire (null pour un message public, rempli pour un message privé). */
+    private String recipient;
+
+    /** Heure formatée (ex: "14:30") pour l'affichage direct. */
+    private String time;
+
+    /** Date et heure précises pour le tri chronologique et le stockage. */
+    private LocalDateTime timestamp;
+
     public ChatMessage() {
     }
 
-    public ChatMessage(MessageType type, String content, String from) {
+    /**
+     * Constructeur utilitaire pour créer rapidement un message.
+     *
+     * @param type Le type d'événement.
+     * @param content Le contenu du message.
+     * @param sender L'auteur du message.
+     */
+    public ChatMessage(MessageType type, String content, String sender) {
         this.type = type;
         this.content = content;
-        this.from = from;
-        this.sender = from;
+        this.from = sender;
+        this.sender = sender;
     }
 
-    // Getters et Setters
     public MessageType getType() {
         return type;
     }
@@ -50,7 +71,6 @@ public class ChatMessage {
 
     public void setFrom(String from) {
         this.from = from;
-        // Synchroniser avec sender pour compatibilité
         if (this.sender == null) {
             this.sender = from;
         }
@@ -62,7 +82,6 @@ public class ChatMessage {
 
     public void setSender(String sender) {
         this.sender = sender;
-        // Synchroniser avec from pour compatibilité
         if (this.from == null) {
             this.from = sender;
         }

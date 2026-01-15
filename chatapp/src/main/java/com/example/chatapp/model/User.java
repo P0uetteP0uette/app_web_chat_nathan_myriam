@@ -3,61 +3,88 @@ package com.example.chatapp.model;
 import jakarta.persistence.*;
 
 /**
- * Entité JPA représentant un utilisateur.
- * Mappée sur la table 'users'.
+ * Entité JPA représentant un utilisateur de l'application.
+ *
+ * Cette classe stocke les informations d'identification (pseudo, mot de passe)
+ * et l'état du compte (activé ou non).
  */
 @Entity
 @Table(name = "users")
 public class User {
 
-    /** Identifiant unique (Clé primaire auto-générée). */
+    /**
+     * Identifiant unique de l'utilisateur (Clé primaire auto-générée).
+     */
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
 
-    /** Pseudonyme de l'utilisateur (Unique et obligatoire). */
+    /**
+     * Pseudonyme de l'utilisateur.
+     * Ce champ est obligatoire et doit être unique dans la base de données.
+     */
     @Column(nullable = false, unique = true)
     private String username;
 
-    /** Mot de passe de l'utilisateur (stocké sous forme hashée). */
+    /**
+     * Mot de passe de l'utilisateur.
+     * Il est stocké sous forme chiffrée (hash) pour des raisons de sécurité.
+     */
     @Column(nullable = false)
     private String password;
 
+    /**
+     * État d'activation du compte.
+     * Vaut false par défaut tant que l'utilisateur n'a pas validé son email.
+     */
     @Column(name = "enabled")
-    private boolean enabled = false; // Par défaut, le compte n'est pas activé
+    private boolean enabled = false;
 
     /**
-     * Constructeur vide requis par JPA.
+     * Constructeur par défaut requis par la spécification JPA.
      */
     public User() {}
 
     /**
-     * Constructeur pour créer un nouvel utilisateur.
-     * @param username Le pseudo.
-     * @param password Le mot de passe.
+     * Constructeur principal pour créer un nouvel utilisateur.
+     *
+     * @param username Le pseudonyme choisi.
+     * @param password Le mot de passe (qui doit être chiffré avant d'être passé ici).
      */
     public User(String username, String password) {
         this.username = username;
         this.password = password;
     }
 
-    // --- Getters et Setters ---
+    public Long getId() { 
+        return id; 
+    }
 
-    /** @return L'identifiant de l'utilisateur. */
-    public Long getId() { return id; }
-    /** @param id Le nouvel identifiant. */
-    public void setId(Long id) { this.id = id; }
+    public void setId(Long id) { 
+        this.id = id; 
+    }
 
-    /** @return Le pseudonyme. */
-    public String getUsername() { return username; }
-    /** @param username Le nouveau pseudonyme. */
-    public void setUsername(String username) { this.username = username; }
+    public String getUsername() { 
+        return username; 
+    }
 
-    /** @return Le mot de passe hashé. */
-    public String getPassword() { return password; }
-    /** @param password Le nouveau mot de passe. */
-    public void setPassword(String password) { this.password = password; }
+    public void setUsername(String username) { 
+        this.username = username; 
+    }
 
-    public boolean isEnabled() { return enabled; }
-    public void setEnabled(boolean enabled) { this.enabled = enabled; }
+    public String getPassword() { 
+        return password; 
+    }
+
+    public void setPassword(String password) { 
+        this.password = password; 
+    }
+
+    public boolean isEnabled() { 
+        return enabled; 
+    }
+
+    public void setEnabled(boolean enabled) { 
+        this.enabled = enabled; 
+    }
 }

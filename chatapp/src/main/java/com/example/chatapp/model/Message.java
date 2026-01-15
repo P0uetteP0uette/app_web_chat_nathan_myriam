@@ -18,13 +18,13 @@ public class Message {
     private Long id;
 
     private String sender;    // Pseudo de l'expéditeur
-    private String recipient; // Pseudo du destinataire (NOUVEAU)
+    private String recipient; // Pseudo du destinataire
     
     @Convert(converter = MessageEncryptor.class)
     @Column(length = 1000)
-    private String content;   // Le texte du message
+    private String content;
 
-    private LocalDateTime timestamp; // Date précise pour le tri (REMPLACE 'time')
+    private LocalDateTime timestamp;
 
     /**
      * Constructeur vide requis par JPA.
@@ -45,8 +45,6 @@ public class Message {
         this.content = content;
         this.timestamp = LocalDateTime.now();
     }
-
-    // --- Getters et Setters ---
 
     public Long getId() { return id; }
     public void setId(Long id) { this.id = id; }

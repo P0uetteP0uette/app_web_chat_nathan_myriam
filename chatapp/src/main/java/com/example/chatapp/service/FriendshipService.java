@@ -10,6 +10,12 @@ import org.springframework.stereotype.Service;
 
 import java.util.Optional;
 
+/**
+ * Service gérant la logique métier liée aux relations d'amitié.
+ *
+ * Ce service permet de vérifier le statut d'une relation entre deux utilisateurs
+ * et de gérer l'envoi de nouvelles demandes d'ajout.
+ */
 @Service
 public class FriendshipService {
 
@@ -20,42 +26,45 @@ public class FriendshipService {
     private UserRepository userRepository;
 
     /**
-     * Vérifie si deux utilisateurs (par pseudo) sont amis confirmés (ACCEPTED).
-     * @param username1 Pseudo de l'expéditeur
-     * @param username2 Pseudo du destinataire
-     * @return true si amis, false sinon.
+     * Vérifie si deux utilisateurs sont amis confirmés (statut ACCEPTED).
+     *
+     * @param username1 Pseudo du premier utilisateur.
+     * @param username2 Pseudo du second utilisateur.
+     * @return true si une amitié validée existe entre les deux, false sinon.
      */
     public boolean areFriends(String username1, String username2) {
-        // 1. Récupérer les utilisateurs
         User u1 = userRepository.findByUsername(username1).orElse(null);
         User u2 = userRepository.findByUsername(username2).orElse(null);
 
         if (u1 == null || u2 == null) {
-            return false; // L'un des deux n'existe pas
+            return false;
         }
 
-        // 2. Chercher la relation (dans les deux sens grâce à ta requête @Query)
+        // Recherche d'une relation existante peu importe la direction (expéditeur/destinataire)
         Optional<Friendship> friendshipOpt = friendshipRepository.findFriendshipBetween(u1, u2);
 
-        // 3. Vérifier si elle existe ET si le statut est ACCEPTED
         if (friendshipOpt.isPresent()) {
             Friendship friendship = friendshipOpt.get();
             return friendship.getStatus() == FriendshipStatus.ACCEPTED;
         }
 
-        return false; // Pas de relation trouvée
+        return false;
     }
 
     /**
-     * Tente d'envoyer une demande d'ami.
-     * Renvoie TRUE si ça a marché, FALSE si c'était impossible (déjà amis, user introuvable...).
+     * Tente d'envoyer une demande d'ami d'un utilisateur à un autre.
+     *
+     * La méthode vérifie d'abord l'existence des utilisateurs et s'assure
+     * qu'aucune relation (en attente ou acceptée) n'existe déjà entre eux.
+     *
+     * @param senderUsername Pseudo de l'expéditeur de la demande.
+     * @param receiverUsername Pseudo du destinataire.
+     * @return true si la demande a été créée avec succès, false sinon (utilisateurs introuvables ou relation existante).
      */
     public boolean sendRequest(String senderUsername, String receiverUsername) {
-        // 1. On récupère les deux utilisateurs
         Optional<User> senderOpt = userRepository.findByUsername(senderUsername);
         Optional<User> receiverOpt = userRepository.findByUsername(receiverUsername);
 
-        // Si l'un des deux n'existe pas, on arrête
         if (senderOpt.isEmpty() || receiverOpt.isEmpty()) {
             return false;
         }
@@ -63,16 +72,15 @@ public class FriendshipService {
         User sender = senderOpt.get();
         User receiver = receiverOpt.get();
 
-        // 2. On vérifie si une relation existe déjà (dans un sens OU dans l'autre)
+        // Vérification si une relation existe déjà (dans un sens ou dans l'autre)
         boolean alreadyLinked = friendshipRepository.existsByRequesterAndFriend(sender, receiver) 
                              || friendshipRepository.existsByRequesterAndFriend(receiver, sender);
 
         if (alreadyLinked) {
-            return false; // Déjà amis ou demande déjà envoyée
+            return false; 
         }
 
-        // 3. On crée la demande
-        // (Le statut par défaut doit être WAITING ou PENDING selon ton constructeur)
+        // Création de la nouvelle demande (Statut par défaut défini dans le constructeur ou l'entité)
         Friendship newFriendship = new Friendship(sender, receiver);
         friendshipRepository.save(newFriendship);
 

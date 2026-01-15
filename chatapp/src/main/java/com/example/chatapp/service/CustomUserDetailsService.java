@@ -12,7 +12,10 @@ import java.util.Collections;
 
 /**
  * Service personnalisé pour l'authentification Spring Security.
- * Fait le lien entre les utilisateurs stockés en base de données et le système de sécurité de Spring.
+ *
+ * Ce service implémente l'interface UserDetailsService pour faire le lien
+ * entre les utilisateurs stockés en base de données (via UserRepository)
+ * et le mécanisme d'authentification interne de Spring Security.
  */
 @Service
 public class CustomUserDetailsService implements UserDetailsService {
@@ -22,26 +25,28 @@ public class CustomUserDetailsService implements UserDetailsService {
 
     /**
      * Charge les détails d'un utilisateur à partir de son nom d'utilisateur.
-     * Cette méthode est appelée automatiquement par Spring Security lors de la tentative de connexion.
+     *
+     * Cette méthode est appelée automatiquement par Spring Security lors du processus de login
+     * pour vérifier si l'utilisateur existe et récupérer ses informations (mot de passe hashé, statut, rôles).
      *
      * @param username Le pseudo de l'utilisateur qui tente de se connecter.
-     * @return Un objet UserDetails contenant les infos de l'utilisateur (pseudo, mot de passe, droits).
-     * @throws UsernameNotFoundException Si l'utilisateur n'existe pas en base de données.
+     * @return Un objet UserDetails contenant les informations de l'utilisateur.
+     * @throws UsernameNotFoundException Si aucun utilisateur ne correspond au pseudo fourni.
      */
     @Override
     public UserDetails loadUserByUsername(String username) throws UsernameNotFoundException {
         User user = userRepository.findByUsername(username)
                 .orElseThrow(() -> new UsernameNotFoundException("Utilisateur non trouvé : " + username));
 
-        // On passe "user.isEnabled()" à Spring Security
+        // Conversion de notre entité User vers l'objet User de Spring Security
         return new org.springframework.security.core.userdetails.User(
                 user.getUsername(),
                 user.getPassword(),
-                user.isEnabled(), // <--- C'est ICI que la magie opère (true/false)
-                true, // accountNonExpired (on s'en fiche pour l'instant, on met true)
+                user.isEnabled(), // Le compte est-il activé (email validé) ?
+                true, // accountNonExpired
                 true, // credentialsNonExpired
                 true, // accountNonLocked
-                Collections.emptyList()
+                Collections.emptyList() // Liste des rôles/autorisations (vide pour l'instant)
         );
     }
 }

@@ -1,4 +1,3 @@
-/* RESET */
 * {
     box-sizing: border-box;
     margin: 0;
@@ -9,27 +8,25 @@
 html, body {
     height: 100%;
     width: 100%;
-    overflow: hidden; /* Empêche le scroll de la page entière */
+    overflow: hidden; 
 }
 
-/* CONTENEUR GLOBAL : Coupe l'écran en 2 (Gauche / Droite) */
 #chat-page {
     display: flex;
-    flex-direction: row; /* GAUCHE -> DROITE */
+    flex-direction: row; 
     height: 100vh;
     width: 100vw;
 }
 
-/* --- 1. SIDEBAR (GAUCHE) --- */
 #sidebar {
-    width: 260px; /* Largeur fixe */
+    width: 260px; 
     background-color: #2c3e50;
     color: white;
     display: flex;
     flex-direction: column;
     padding: 20px;
-    height: 100%; /* Toute la hauteur */
-    flex-shrink: 0; /* Ne rétrécit jamais */
+    height: 100%; 
+    flex-shrink: 0; 
 }
 
 #sidebar h3 {
@@ -42,7 +39,7 @@ html, body {
 #users-list {
     list-style: none;
     overflow-y: auto;
-    flex-grow: 1; /* Prend toute la place dispo en hauteur */
+    flex-grow: 1; 
 }
 
 #current-user {
@@ -60,16 +57,14 @@ html, body {
     border: none;
 }
 
-/* --- 2. CHAT CONTAINER (DROITE) --- */
 #chat-container {
-    flex: 1; /* Prend tout le reste de la largeur */
+    flex: 1; 
     display: flex;
-    flex-direction: column; /* HAUT -> BAS (Important !) */
+    flex-direction: column; 
     height: 100%;
     background-color: #f4f7f6;
 }
 
-/* A. HEADER */
 #chat-header-container {
     padding: 15px 20px;
     background-color: white;
@@ -83,36 +78,33 @@ html, body {
     color: #333;
 }
 
-/* B. CHAT BOX (MESSAGES) */
 #chat-box {
-    flex: 1; /* Prend tout l'espace vertical disponible */
-    overflow-y: auto; /* Scroll uniquement ici */
+    flex: 1; 
+    overflow-y: auto; 
     padding: 20px;
     display: flex;
     flex-direction: column;
 }
 
-/* C. INPUT AREA (BAS) */
 #message-input-area {
     padding: 20px;
     background-color: white;
     border-top: 1px solid #ddd;
 }
 
-/* Wrapper pour centrer et styliser la barre */
 .input-wrapper {
-    max-width: 900px; /* Largeur max pour que ça fasse propre */
-    margin: 0 auto;   /* Centré au milieu */
+    max-width: 900px; 
+    margin: 0 auto;   
     display: flex;
     gap: 10px;
     background-color: #f0f2f5;
     padding: 5px;
-    border-radius: 50px; /* Forme de pilule */
+    border-radius: 50px; 
     border: 1px solid #ddd;
 }
 
 #message {
-    flex: 1; /* Prend toute la place dans la pilule */
+    flex: 1; 
     border: none;
     background: transparent;
     padding: 12px 20px;
@@ -140,43 +132,36 @@ html, body {
     transform: scale(1.1);
 }
 
-/* Style de base pour toutes les bulles (arrondis, padding...) */
 .message-bubble {
     padding: 10px 15px;
     border-radius: 20px;
     margin-bottom: 10px;
-    max-width: 70%; /* Pour ne pas que la bulle prenne toute la largeur */
+    max-width: 70%; 
     word-wrap: break-word;
-    display: inline-block; /* Important pour que la taille s'adapte au texte */
-    clear: both; /* Pour éviter que les messages se chevauchent */
+    display: inline-block; 
+    clear: both; 
 }
 
-/* TES messages dans le général */
 .my-message-general {
-    float: right; /* Aligne à droite */
-    /* Un bleu foncé professionnel (ex: bleu Discord/Facebook sombre) */
+    float: right; 
     background-color: #3b5998; 
-    color: white; /* Texte blanc pour le contraste */
-    border-bottom-right-radius: 5px; /* Petit effet visuel sur le coin */
+    color: white; 
+    border-bottom-right-radius: 5px; 
 }
 
-/* Les messages des AUTRES */
 .other-message-general {
-    float: left; /* Aligne à gauche */
-    background-color: #e4e6eb; /* Gris clair classique */
+    float: left; 
+    background-color: #e4e6eb; 
     color: black;
     border-bottom-left-radius: 5px;
 }
 
-/* IMPORTANT : Il faut un "clear" après la liste des messages pour gérer les floats */
-/* Ajoute une div vide avec la classe 'clearfix' après ta zone de messages dans le HTML */
 .clearfix::after {
     content: "";
     clear: both;
     display: table;
 }
 
-/* Style des mentions */
 .mention {
     font-weight: bold;
     color: #2980b9;
@@ -186,15 +171,14 @@ html, body {
 }
 
 .mention-me {
-    background-color: #f1c40f; /* Jaune si c'est toi qu'on appelle */
+    background-color: #f1c40f; 
     color: #000;
     border: 1px solid #d4ac0d;
 }
 
-/* Bouton Scroll vers le bas */
 #scroll-down-btn {
     position: absolute;
-    bottom: 80px; /* Juste au dessus de la barre de saisie */
+    bottom: 80px; 
     right: 30px;
     background: none;
     border: none;

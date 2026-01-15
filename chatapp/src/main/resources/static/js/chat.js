@@ -1,31 +1,54 @@
+/**
+ * @file chat.js
+ * @description Contrôleur principal pour l'interface du Chat Général.
+ * Gère les connexions WebSocket (Stomp), la logique du chat public, les notifications globales,
+ * la gestion du son et les mises à jour de statut des utilisateurs en temps réel.
+ */
+
 /* ================================================================
-   CHAT GÉNÉRAL (Main Controller) - VERSION "EXPÉRIENCE UTILISATEUR"
-   (Avec Mentions, Titre Dynamique et Scroll Button)
+   VARIABLES GLOBALES & CONFIGURATION
    ================================================================ */
 
+/** @type {Object|null} Client Stomp pour la communication WebSocket. */
 let stompClient = null;
-let selectedUser = null;
+
+/** @type {Object.<string, string>} Stocke le statut des utilisateurs (ex: {'User1': 'ONLINE'}). */
 let userStatuses = {};
+
+/** @type {string|null} Garde en mémoire l'expéditeur du dernier message pour le regroupement visuel. */
 let lastSender = null;
+
+/** @type {number} Timestamp (en minutes) du dernier message pour la logique de regroupement. */
 let lastTimeMinutes = -1;
 
+// --- Variables pour l'indicateur de frappe ---
 let isTyping = false;
 let typingTimeout = null;
 let typingDisplayTimeout = null;
 
-// --- VARIABLES GLOBALES (NOUVEAU) ---
+// --- Variables pour les notifications & le son ---
 let unreadCount = 0;
 let originalTitle = document.title;
 
-// --- GESTION DU SON ---
+/** @type {boolean} État du son (activé/désactivé), persisté dans le localStorage. */
 let isSoundOn = localStorage.getItem("chatSound") !== "false";
 
+/* ================================================================
+   GESTION DU SON
+   ================================================================ */
+
+/**
+ * Active ou désactive le son global et sauvegarde la préférence.
+ */
 function toggleSound() {
     isSoundOn = !isSoundOn;
     localStorage.setItem("chatSound", isSoundOn);
     updateSoundIcon();
 }
 
+/**
+ * Met à jour l'icône et le texte du bouton de son dans l'interface selon l'état actuel.
+ */
 function updateSoundIcon() {
     const btn = document.getElementById("sound-toggle-btn");
     const icon = document.getElementById("sound-icon");
@@ -42,21 +65,30 @@ function updateSoundIcon() {
     }
 }
 
+/**
+ * Joue le son de notification si l'option est activée.
+ */
 function playNotificationSound() {
     if (!isSoundOn) return;
     const audio = document.getElementById("notification-sound");
     if (audio) {
         audio.currentTime = 0;
-        audio.play().catch(e => console.log("Son bloqué"));
+        audio.play().catch(() => {}); // Catch pour éviter les erreurs si le navigateur bloque l'autoplay
     }
 }
 
-// --- INITIALISATION ---
+/* ================================================================
+   INITIALISATION & ÉCOUTEURS D'ÉVÉNEMENTS
+   ================================================================ */
+
+/**
+ * Initialise l'application de chat au chargement complet du DOM.
+ * Configure les WebSockets, les écouteurs d'événements et récupère les données initiales.
+ */
 document.addEventListener("DOMContentLoaded", function() {
     updateSoundIcon();
 
-    // --- 1. GESTION DU TITRE D'ONGLET (NOUVEAU) ---
-    // Quand l'utilisateur revient sur la page, on remet le titre normal
+    // 1. Gestion du titre de l'onglet (Notifications)
     document.addEventListener("visibilitychange", function() {
         if (document.visibilityState === "visible") {
             unreadCount = 0;
@@ -64,13 +96,13 @@ document.addEventListener("DOMContentLoaded", function() {
         }
     });
 
-    // --- 2. GESTION DU SCROLL BUTTON (NOUVEAU) ---
+    // 2. Gestion du bouton de défilement vers le bas
     const chatBox = document.getElementById("chat-box");
     const scrollBtn = document.getElementById("scroll-down-btn");
 
     if (chatBox) {
         chatBox.addEventListener("scroll", function() {
-            // Si on remonte de plus de 100px, on affiche le bouton
+            // Affiche le bouton si l'utilisateur remonte de plus de 100px
             if (chatBox.scrollTop < (chatBox.scrollHeight - chatBox.clientHeight - 100)) {
                 if(scrollBtn) scrollBtn.style.display = "block";
             } else {
@@ -79,7 +111,7 @@ document.addEventListener("DOMContentLoaded", function() {
         });
     }
 
-    // 3. Charger Users
+    // 3. Récupération des utilisateurs connectés
     fetch('/api/users')
         .then(response => response.json())
         .then(usersMap => {
@@ -89,49 +121,59 @@ document.addEventListener("DOMContentLoaded", function() {
             }
         });
 
-    // 4. Charger Historique
+    // 4. Récupération de l'historique du chat public
     fetch('/api/history')
         .then(response => response.json())
         .then(messages => {
             messages.forEach(msg => showChatMessage(msg));
         });
 
-    // 5. WebSocket
+    // 5. Initialisation de la connexion WebSocket
     const socket = new SockJS('/chat-websocket');
     stompClient = Stomp.over(socket);
+    stompClient.debug = null; // Désactive les logs de débogage pour une console plus propre
 
     stompClient.connect({}, () => {
+        // Abonnement au Chat Public
         stompClient.subscribe('/topic/public', (payload) => {
             onMessageReceived(JSON.parse(payload.body));
         });
 
+        // Abonnement aux Messages Privés (Queue personnelle)
         stompClient.subscribe('/user/queue/private', (payload) => {
             const msg = JSON.parse(payload.body);
+            // Déclenche un événement personnalisé pour que la popup (chat-popup.js) le gère
             const event = new CustomEvent('private-message-received', { detail: msg });
             window.dispatchEvent(event);
+            
             const sender = msg.sender || msg.from;
+            
+            // Joue un son si le message ne vient pas de soi et n'est pas juste un signal de frappe
+            if (isSoundOn && sender !== currentUserGlobal && msg.type !== 'TYPING') {
+                playNotificationSound();
+            }
+
+            // Met à jour le titre de l'onglet pour les notifications en arrière-plan
             if (document.hidden && msg.type !== 'TYPING') {
                 unreadCount++;
                 document.title = `(${unreadCount}) Nouveaux messages`;
             }
-            if (isSoundOn && sender !== currentUserGlobal && msg.type === 'CHAT') {
-                playNotificationSound();
-            }
         });
 
+        // Abonnement aux Demandes d'amis (Mise à jour badge temps réel)
         stompClient.subscribe('/user/queue/friends', function (payload) {
-            console.log("🔔 Nouvelle demande d'ami reçue !");
-            updateFriendRequestBadge(); // On appelle la fonction qui gère l'affichage
+            updateFriendRequestBadge();
         });
 
+        // Notifie le serveur de la présence de l'utilisateur
         stompClient.send("/app/chat.addUser", {}, JSON.stringify({}));
     });
 
-    // 6. Gestion de la zone de saisie (Input + Emojis)
+    // 6. Gestion de la zone de saisie & Emojis
     const msgInput = document.getElementById("message");
     
     if(msgInput) {
-        // A. Gestion Entrée + Typing Indicator
+        // Envoi sur la touche Entrée
         msgInput.addEventListener("keydown", function(event) {
             if (event.key === "Enter") {
                 event.preventDefault();
@@ -141,6 +183,7 @@ document.addEventListener("DOMContentLoaded", function() {
             }
         });
 
+        // Logique de l'indicateur de frappe
         msgInput.addEventListener("input", function() {
             if (!isTyping) {
                 isTyping = true;
@@ -153,7 +196,7 @@ document.addEventListener("DOMContentLoaded", function() {
             typingTimeout = setTimeout(() => { isTyping = false; }, 2000);
         });
 
-        // B. GESTION DU SÉLECTEUR D'EMOJIS
+        // Intégration du sélecteur d'émojis Picmo
         const emojiBtn = document.getElementById('emoji-btn');
         const emojiContainer = document.getElementById('emoji-picker-container');
 
@@ -180,6 +223,7 @@ document.addEventListener("DOMContentLoaded", function() {
                 msgInput.dispatchEvent(new Event('input')); 
             });
 
+            // Ferme le sélecteur si on clique à l'extérieur
             document.addEventListener('click', function(e) {
                 if (!emojiBtn.contains(e.target) && !emojiContainer.contains(e.target)) {
                     emojiContainer.style.display = 'none';
@@ -189,6 +233,13 @@ document.addEventListener("DOMContentLoaded", function() {
     }
 });
 
+/* ================================================================
+   LOGIQUE D'ENVOI & RÉCEPTION
+   ================================================================ */
+
+/**
+ * Envoie le message saisi dans l'input au serveur via WebSocket.
+ */
 function sendMessage() {
     const input = document.getElementById("message");
     const content = input.value.trim();
@@ -203,6 +254,9 @@ function sendMessage() {
     }
 }
 
+/**
+ * Envoie le changement de statut (En ligne, Occupé...) au serveur.
+ */
 function sendStatusChange() {
     const selector = document.getElementById("status-select");
     if(selector && stompClient) {
@@ -212,59 +266,17 @@ function sendStatusChange() {
     }
 }
 
-// Fonction pour ajouter +1 à la notification sans recharger
-function updateFriendRequestBadge() {
-    // 1. On cherche le bouton "Trouver des amis"
-    // (On cherche le lien qui contient href="/find-friends")
-    const btn = document.querySelector('a[href="/find-friends"]');
-    
-    if (!btn) return; // Sécurité si on n'est pas sur la bonne page
-
-    // 2. On regarde si la bulle existe déjà
-    let badge = btn.querySelector("span");
-
-    if (badge) {
-        // CAS A : La bulle existe -> On augmente le chiffre
-        let count = parseInt(badge.innerText);
-        badge.innerText = count + 1;
-    } else {
-        // CAS B : Pas de bulle -> On la crée (avec le même style que Thymeleaf)
-        badge = document.createElement("span");
-        badge.innerText = "1";
-        
-        // On copie le style CSS qu'on a mis dans le HTML tout à l'heure
-        badge.style.cssText = `
-            position: absolute;
-            top: -8px;
-            right: -8px;
-            background-color: #e74c3c;
-            color: white;
-            border-radius: 50%;
-            width: 22px;
-            height: 22px;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            font-size: 0.8rem;
-            font-weight: bold;
-            border: 2px solid #2c3e50;
-            box-shadow: 0 2px 5px rgba(0,0,0,0.2);
-        `;
-        
-        btn.appendChild(badge);
-    }
-    
-    // Petit bonus : un son de notification si tu veux !
-    // playNotificationSound(); 
-}
-
+/**
+ * Traite les messages reçus du canal public WebSocket.
+ * Gère l'affichage des messages, les changements de statut, et les événements système (Join/Leave).
+ * @param {Object} msg - L'objet message reçu.
+ */
 function onMessageReceived(msg) {
-    // --- MISE A JOUR DU TITRE D'ONGLET (NOUVEAU) ---
+    // Notification dans l'onglet uniquement pour les vrais messages de chat
     if (document.hidden && msg.type === 'CHAT') {
         unreadCount++;
         document.title = `(${unreadCount}) Nouveaux messages`;
     }
-    // -----------------------------------------------
 
     if (msg.type === 'JOIN') {
         userStatuses[msg.from] = "ONLINE";
@@ -292,6 +304,14 @@ function onMessageReceived(msg) {
     }
 }
 
+/* ================================================================
+   FONCTIONS D'INTERFACE UTILISATEUR (UI)
+   ================================================================ */
+
+/**
+ * Affiche l'indicateur "Untel est en train d'écrire..." temporairement.
+ * @param {string} username - Pseudo de l'utilisateur qui écrit.
+ */
 function showTypingIndicator(username) {
     const indicator = document.getElementById("typing-indicator");
     if (!indicator) return;
@@ -302,18 +322,25 @@ function showTypingIndicator(username) {
     }, 3000);
 }
 
+/**
+ * Convertit une chaîne de temps "HH:mm" en minutes totales pour la comparaison.
+ * @param {string} timeStr - Heure au format "HH:mm".
+ * @returns {number} Minutes totales depuis minuit.
+ */
 function timeToMinutes(timeStr) {
     if (!timeStr) return 0;
     const parts = timeStr.split(':');
     return parseInt(parts[0]) * 60 + parseInt(parts[1]);
 }
 
-// Fonction utilitaire pour traiter le texte (Sécurité + Mentions)
+/**
+ * Formate le contenu du message : sécurisation HTML et mise en évidence des mentions.
+ * @param {string} rawContent - Contenu brut du message.
+ * @returns {string} HTML sécurisé avec mentions formatées.
+ */
 function formatMessageContent(rawContent) {
-    // 1. Sécuriser le texte (empêche le HTML malveillant mais garde les emojis)
     let safeContent = escapeHtml(rawContent);
-
-    // 2. Transformer les @Pseudo en span coloré (NOUVEAU)
+    // Transforme les @Pseudo en span stylisé
     safeContent = safeContent.replace(/@(\w+)/g, function(match, username) {
         if (username === currentUserGlobal) {
             return `<span class="mention mention-me">@${username}</span>`;
@@ -321,10 +348,14 @@ function formatMessageContent(rawContent) {
             return `<span class="mention">@${username}</span>`;
         }
     });
-
     return safeContent;
 }
 
+/**
+ * Crée et ajoute une bulle de message dans la zone de chat.
+ * Gère le regroupement des messages consécutifs du même auteur.
+ * @param {Object} msg - L'objet message à afficher.
+ */
 function showChatMessage(msg) {
     const box = document.getElementById("chat-box");
     if (!box) return;
@@ -340,6 +371,7 @@ function showChatMessage(msg) {
 
     const currentMinutes = timeToMinutes(displayTime);
     const timeDiff = currentMinutes - lastTimeMinutes;
+    // Regroupe si même auteur et moins de 5 minutes d'écart
     let shouldGroup = (senderName === lastSender) && (timeDiff >= 0 && timeDiff < 5);
 
     // --- CAS 1 : REGROUPEMENT DE MESSAGES ---
@@ -351,12 +383,8 @@ function showChatMessage(msg) {
                 const newTextLine = document.createElement("div");
                 const borderColor = isMe ? "rgba(255,255,255,0.2)" : "rgba(0,0,0,0.05)";
                 const textColor = isMe ? "white" : "inherit";
-
                 newTextLine.style.cssText = `margin-top:4px; padding-top:4px; border-top:1px solid ${borderColor}; color: ${textColor};`;
-                
-                // Utilisation de innerHTML avec contenu sécurisé pour afficher les mentions
                 newTextLine.innerHTML = formatMessageContent(msg.content);
-
                 bubble.appendChild(newTextLine);
                 lastTimeMinutes = currentMinutes;
                 box.scrollTop = box.scrollHeight;
@@ -390,7 +418,6 @@ function showChatMessage(msg) {
     div.className = "message-group";
     div.style.marginBottom = "15px";
     div.style.clear = "both";
-
     const avatarUrl = `https://api.dicebear.com/7.x/bottts/svg?seed=${senderName}`;
 
     div.innerHTML = `
@@ -405,7 +432,6 @@ function showChatMessage(msg) {
         </div>
     `;
 
-    // Utilisation de innerHTML avec contenu sécurisé pour afficher les mentions
     const bubble = div.querySelector(".chat-bubble");
     bubble.innerHTML = formatMessageContent(msg.content); 
 
@@ -415,13 +441,18 @@ function showChatMessage(msg) {
     box.scrollTop = box.scrollHeight;
 }
 
+/**
+ * Fait défiler la zone de chat vers le bas pour afficher les derniers messages.
+ */
 function scrollToBottom() {
     const box = document.getElementById("chat-box");
-    if(box) {
-        box.scrollTop = box.scrollHeight;
-    }
+    if(box) box.scrollTop = box.scrollHeight;
 }
 
+/**
+ * Affiche un message système centré (ex: Connexion/Déconnexion).
+ * @param {string} text - Le texte à afficher.
+ */
 function showSystemMessage(text) {
     const box = document.getElementById("chat-box");
     if(!box) return;
@@ -433,12 +464,22 @@ function showSystemMessage(text) {
     box.scrollTop = box.scrollHeight;
 }
 
+/**
+ * Retourne la couleur hexadécimale associée à un statut.
+ * @param {string} status - Le statut (ONLINE, BUSY, AWAY).
+ * @returns {string} Code couleur hex.
+ */
 function getStatusColor(status) {
     if (status === 'BUSY') return '#e74c3c';
     if (status === 'AWAY') return '#f39c12';
     return '#2ecc71';
 }
 
+/**
+ * Ajoute un utilisateur à la barre latérale ou met à jour son statut s'il existe déjà.
+ * @param {string} username - Pseudo de l'utilisateur.
+ * @param {string} status - Statut de l'utilisateur.
+ */
 function addUserToSidebar(username, status = 'ONLINE') {
     const list = document.getElementById("users-list");
     if (!list) return;
@@ -468,25 +509,12 @@ function addUserToSidebar(username, status = 'ONLINE') {
     li.appendChild(dot);
     li.appendChild(text);
 
+    // Clic utilisateur : Ouvre le chat ou la demande d'ami via chat-popup.js
     li.onclick = function() {
-        console.log("👇 [CHAT] Clic détecté sur :", username);
-        
-        // Test 1 : Est-ce que la fonction existe normalement ?
-        console.log("🔍 [CHAT] Type of openChat :", typeof openChat);
-        
-        // Test 2 : Est-ce qu'elle existe sur window ?
-        console.log("🔍 [CHAT] Type of window.openChat :", typeof window.openChat);
-
         if (typeof openChat === "function") {
-            console.log("✅ [CHAT] Appel via openChat direct");
             openChat(username);
-        } 
-        else if (typeof window.openChat === "function") {
-            console.log("✅ [CHAT] Appel via window.openChat (Secours)");
+        } else if (typeof window.openChat === "function") {
             window.openChat(username);
-        } 
-        else {
-            console.error("❌ [CHAT] CRITIQUE : La fonction openChat est introuvable !");
         }
     };
 
@@ -494,18 +522,59 @@ function addUserToSidebar(username, status = 'ONLINE') {
     else list.appendChild(li);
 }
 
+/**
+ * Retire un utilisateur de la barre latérale (lorsqu'il quitte).
+ * @param {string} username - Pseudo de l'utilisateur.
+ */
 function removeUserFromSidebar(username) {
     const li = document.getElementById("user-" + username);
     if (li) li.remove();
 }
 
+/**
+ * Met à jour la couleur du point de statut d'un utilisateur.
+ * @param {string} username - Pseudo de l'utilisateur.
+ * @param {string} newStatus - Nouveau statut.
+ */
 function updateUserStatus(username, newStatus) {
     const dot = document.getElementById("status-dot-" + username);
     if (dot) dot.style.backgroundColor = getStatusColor(newStatus);
     userStatuses[username] = newStatus;
 }
 
+/**
+ * Échappe les caractères HTML spéciaux pour prévenir les failles XSS.
+ * @param {string} text - Texte brut.
+ * @returns {string} Texte sécurisé.
+ */
 function escapeHtml(text) {
     if (!text) return text;
     return text.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;").replace(/'/g, "&#039;");
+}
+
+/**
+ * Met à jour le badge de notification (compteur rouge) sur le bouton "Trouver des amis".
+ * Appelé lors de la réception d'une nouvelle demande d'ami.
+ */
+function updateFriendRequestBadge() {
+    const btn = document.querySelector('a[href="/find-friends"]');
+    if (!btn) return;
+
+    let badge = btn.querySelector("span");
+    if (badge) {
+        let count = parseInt(badge.innerText);
+        badge.innerText = count + 1;
+    } else {
+        badge = document.createElement("span");
+        badge.innerText = "1";
+        badge.style.cssText = `
+            position: absolute; top: -8px; right: -8px;
+            background-color: #e74c3c; color: white;
+            border-radius: 50%; width: 22px; height: 22px;
+            display: flex; align-items: center; justify-content: center;
+            font-size: 0.8rem; font-weight: bold;
+            border: 2px solid #2c3e50; box-shadow: 0 2px 5px rgba(0,0,0,0.2);
+        `;
+        btn.appendChild(badge);
+    }
 }

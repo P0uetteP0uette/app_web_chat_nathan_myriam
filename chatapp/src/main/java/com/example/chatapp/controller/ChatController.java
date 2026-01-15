@@ -16,9 +16,9 @@ import org.springframework.stereotype.Controller;
 import org.springframework.ui.Model;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PostMapping;
+import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.ResponseBody;
 import org.springframework.web.util.HtmlUtils;
-import org.springframework.web.bind.annotation.RequestParam;
 
 import java.security.Principal;
 import java.time.LocalDateTime;
@@ -30,16 +30,17 @@ import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
 
 /**
- * Contrôleur principal de l'application de Chat.
- * Gère les interactions WebSocket (STOMP) pour la messagerie temps réel
- * ainsi que les endpoints REST et l'affichage des vues HTML.
+ * Contrôleur principal de l'application de chat.
+ *
+ * Il gère à la fois les requêtes HTTP (pour les pages et l'API REST)
+ * et les événements WebSocket (STOMP) pour la communication en temps réel.
  */
 @Controller
 public class ChatController {
 
     /**
-     * Stocke les statuts des utilisateurs connectés en mémoire vive.
-     * Structure : "Pseudo" -> "Statut" (ex: "Toto" -> "ONLINE").
+     * Stockage en mémoire des statuts des utilisateurs connectés (ONLINE, BUSY, AWAY).
+     * Utilise une ConcurrentHashMap pour gérer les accès simultanés (Thread-safe).
      */
     private static final Map<String, String> userStatuses = new ConcurrentHashMap<>();
 
@@ -52,33 +53,42 @@ public class ChatController {
     @Autowired
     private FriendshipService friendshipService;
 
+    // --- PAGE D'ACCUEIL ---
+
     /**
-     * Affiche la page d'accueil de l'application.
-     * Injecte le nom de l'utilisateur connecté dans le modèle pour utilisation par le client (JavaScript).
+     * Charge la page principale de l'application.
+     *
+     * Cette méthode récupère l'historique récent du chat public (50 derniers messages)
+     * et l'injecte dans le modèle pour qu'il soit affiché au chargement de la page.
+     *
+     * @param model Le modèle Spring pour passer des données à la vue Thymeleaf.
+     * @param principal L'utilisateur actuellement connecté.
+     * @return Le nom du template HTML à afficher (index).
      */
     @GetMapping("/")
     public String index(Model model, Principal principal) {
         if (principal != null) {
             model.addAttribute("username", principal.getName());
         }
-
-        // --- AJOUT : CHARGER L'HISTORIQUE PUBLIC ---
-        // On récupère les 50 derniers messages SANS destinataire (donc publics)
+        // Chargement de l'historique public et inversion pour l'ordre chronologique
         List<Message> history = messageRepository.findTop50ByRecipientIsNullOrderByTimestampDesc();
-        
-        // On inverse la liste pour les afficher du plus vieux au plus récent (Haut vers Bas)
         Collections.reverse(history);
-        
-        // On donne la liste à la page HTML
         model.addAttribute("history", history);
-        // -------------------------------------------
 
         return "index";
     }
 
+    // --- GESTION MESSAGES PUBLICS ---
+
     /**
      * Gère l'envoi de messages publics.
-     * Le message est sauvegardé en base de données puis diffusé à tous les abonnés.
+     *
+     * Le message est nettoyé (échappement HTML pour éviter les failles XSS),
+     * sauvegardé en base de données, puis diffusé à tous les abonnés du topic public.
+     *
+     * @param chatMessage Le message reçu via WebSocket.
+     * @param principal L'expéditeur.
+     * @return Le message traité qui sera diffusé.
      */
     @MessageMapping("/sendMessage")
     @SendTo("/topic/public")
@@ -86,90 +96,80 @@ public class ChatController {
         String username = principal.getName();
         String time = getCurrentTime();
 
-        // 🛡️ SÉCURITÉ XSS (Clean Code) : On nettoie le message avant tout traitement
+        // Sécurité : Nettoyage du contenu pour prévenir les injections XSS
         if (chatMessage.getContent() != null) {
             String cleanContent = HtmlUtils.htmlEscape(chatMessage.getContent());
             chatMessage.setContent(cleanContent);
         }
 
-        // Préparation du message pour le WebSocket (Affichage immédiat)
         chatMessage.setType(MessageType.CHAT);
         chatMessage.setFrom(username);
         chatMessage.setTime(time);
         
-        // --- CORRECTION IMPORTANTE ---
-        // Pour la BDD, on utilise le nouveau constructeur : Message(sender, recipient, content)
-        // On met 'null' en recipient pour dire que c'est PUBLIC
-        // Note: le content est déjà nettoyé (sanitized) juste au-dessus
+        // Persistance du message public (recipient = null)
         Message dbMessage = new Message(username, null, chatMessage.getContent());
-        
         messageRepository.save(dbMessage); 
-        // -----------------------------
 
         return chatMessage;
     }
 
-    /**
-     * Gère l'envoi de messages privés (1-to-1).
-     * Le message est envoyé spécifiquement au destinataire et renvoyé à l'expéditeur pour confirmation visuelle.
-     */
+    // --- GESTION MESSAGES PRIVÉS ---
 
+    /**
+     * Gère l'envoi de messages privés entre deux utilisateurs.
+     *
+     * Vérifie d'abord si les deux utilisateurs sont amis. Si oui, le message est sauvegardé
+     * et envoyé spécifiquement aux files d'attente (queues) de l'expéditeur et du destinataire.
+     *
+     * @param message Le message privé contenant le destinataire.
+     * @param principal L'expéditeur.
+     */
     @MessageMapping("/chat.private")
     public void sendPrivateMessage(@Payload ChatMessage message, Principal principal) {
         String sender = principal.getName();
         String recipient = message.getRecipient();
         String time = getCurrentTime();
 
-        // --- 🔒 VÉRIFICATION AMITIÉ (Exigence Itération 3) ---
-        // Avant tout traitement, on vérifie si l'expéditeur et le destinataire sont amis.
-        // Si ta méthode s'appelle autrement (ex: checkFriendship), change le nom ici.
+        // Sécurité : Seuls les amis peuvent s'envoyer des messages privés
         if (!friendshipService.areFriends(sender, recipient)) {
-            System.out.println("⛔ ERREUR SÉCURITÉ : " + sender + " a tenté d'écrire à " + recipient + " sans être ami.");
-            return; // 🛑 ON ARRÊTE TOUT ICI. Le message n'est ni sauvegardé, ni envoyé.
+            return; 
         }
-        // ----------------------------------------------------
 
-        // 🛡️ SÉCURITÉ XSS (Clean Code) : On nettoie le message privé aussi
+        // Sécurité XSS
         String rawContent = message.getContent();
         String sanitizedContent = (rawContent != null) ? HtmlUtils.htmlEscape(rawContent) : "";
-        message.setContent(sanitizedContent); // On met à jour l'objet entrant
+        message.setContent(sanitizedContent);
 
-        System.out.println("📨 Message privé reçu de: " + sender + " vers: " + recipient);
-
-        // 1. Préparer le message pour WebSocket
+        // Construction du message WebSocket
         ChatMessage wsMessage = new ChatMessage();
         wsMessage.setSender(sender);        
         wsMessage.setRecipient(recipient);  
-        wsMessage.setContent(sanitizedContent); // Contenu sécurisé
+        wsMessage.setContent(sanitizedContent);
         wsMessage.setType(MessageType.CHAT);
         wsMessage.setTime(time);
         wsMessage.setTimestamp(LocalDateTime.now()); 
 
-        // 2. SAUVEGARDER EN BDD
+        // Sauvegarde en base de données
         Message dbMessage = new Message(sender, recipient, sanitizedContent);
         messageRepository.save(dbMessage);
-        System.out.println("💾 Message sauvegardé en BDD");
 
-        // 3. ENVOYER AU DESTINATAIRE
-        System.out.println("📤 Envoi à " + recipient + " via /user/" + recipient + "/queue/private");
+        // Diffusion ciblée : à l'expéditeur (pour confirmation) et au destinataire
         simpMessagingTemplate.convertAndSendToUser(recipient, "/queue/private", wsMessage);
-
-        // 4. ENVOYER A L'EXPÉDITEUR (Pour confirmation immédiate)
-        System.out.println("📤 Envoi à " + sender + " (confirmation) via /user/" + sender + "/queue/private");
         simpMessagingTemplate.convertAndSendToUser(sender, "/queue/private", wsMessage);
-        
-        System.out.println("✅ Message privé envoyé avec succès");
     }
 
+    // --- GESTION UTILISATEURS (Connexion/Statut) ---
+
     /**
-     * Gère l'arrivée d'un nouvel utilisateur dans le chat.
+     * Enregistre un nouvel utilisateur connecté.
+     *
+     * Ajoute l'utilisateur à la map des statuts et diffuse un message de type JOIN
+     * pour que les autres clients puissent mettre à jour leur liste d'utilisateurs.
      */
     @MessageMapping("/chat.addUser")
     @SendTo("/topic/public")
     public ChatMessage addUser(ChatMessage message, SimpMessageHeaderAccessor headerAccessor, Principal principal) {
         String username = principal.getName();
-        
-        // Par défaut, le nouveau est ONLINE
         userStatuses.put(username, "ONLINE");
         
         message.setType(MessageType.JOIN);
@@ -181,48 +181,48 @@ public class ChatController {
     }
 
     /**
-     * Permet à un utilisateur de changer manuellement son statut.
+     * Met à jour le statut d'un utilisateur (En ligne, Occupé, Absent).
      */
     @MessageMapping("/chat.changeStatus")
     @SendTo("/topic/public")
     public ChatMessage changeStatus(ChatMessage message, Principal principal) {
         String username = principal.getName();
         String newStatus = message.getContent(); 
-        
         userStatuses.put(username, newStatus);
         
         message.setType(MessageType.STATUS);
         message.setFrom(username);
-        
         return message;
     }
 
-    // --- INDICATEUR DE FRAPPE (Chat Public) ---
+    // --- INDICATEURS DE FRAPPE ---
+
+    /**
+     * Diffuse l'événement "est en train d'écrire" sur le chat public.
+     */
     @MessageMapping("/chat.typing")
     @SendTo("/topic/public")
     public ChatMessage typing(ChatMessage chatMessage) {
-        // On renvoie juste le signal "C'est un type TYPING"
         chatMessage.setType(MessageType.TYPING);
         return chatMessage;
     }
 
-    // --- INDICATEUR DE FRAPPE (Chat Privé) ---
+    /**
+     * Envoie l'événement "est en train d'écrire" uniquement au destinataire privé.
+     */
     @MessageMapping("/chat.private.typing") 
     public void privateTyping(ChatMessage chatMessage) {
-        // On s'assure que le type est bien TYPING
         chatMessage.setType(MessageType.TYPING);
-        
-        // On l'envoie UNIQUEMENT au destinataire (recipient)
-        // Correction ici : on utilise 'simpMessagingTemplate' qui est déjà déclaré plus haut
         simpMessagingTemplate.convertAndSendToUser(
-            chatMessage.getRecipient(), 
-            "/queue/private", 
-            chatMessage
+            chatMessage.getRecipient(), "/queue/private", chatMessage
         );
     }
 
+    // --- API REST ---
+
     /**
-     * API REST pour récupérer la liste des utilisateurs connectés.
+     * API pour récupérer la liste des utilisateurs connectés et leur statut.
+     * @return Une map JSON { "pseudo": "STATUT" }.
      */
     @GetMapping("/api/users")
     @ResponseBody
@@ -231,7 +231,8 @@ public class ChatController {
     }
 
     /**
-     * API REST pour récupérer l'historique des derniers messages.
+     * API pour récupérer l'historique récent du chat public.
+     * @return Une liste JSON de messages.
      */
     @GetMapping("/api/history")
     @ResponseBody
@@ -242,20 +243,20 @@ public class ChatController {
     }
 
     /**
-     * API pour vérifier si deux utilisateurs sont amis.
-     * Appelée par le JavaScript avant d'ouvrir la popup.
+     * Vérifie si deux utilisateurs sont amis (utilisé par le JS pour ouvrir la popup de chat).
      */
     @GetMapping("/api/friends/check")
     @ResponseBody
     public boolean checkFriendship(@RequestParam String target, Principal principal) {
-        String me = principal.getName();
-        
-        // On utilise ton service existant pour vérifier
-        return friendshipService.areFriends(me, target);
+        return friendshipService.areFriends(principal.getName(), target);
     }
 
-// Dans ChatController.java
-
+    /**
+     * Envoie une demande d'ami et notifie le destinataire en temps réel via WebSocket.
+     *
+     * Si la demande est créée avec succès, un message système est poussé vers le client
+     * cible pour faire apparaître la pastille rouge de notification instantanément.
+     */
     @PostMapping("/api/friends/add")
     @ResponseBody
     public String sendFriendRequest(@RequestParam String receiverUsername, Principal principal) {
@@ -263,27 +264,29 @@ public class ChatController {
         boolean success = friendshipService.sendRequest(sender, receiverUsername);
 
         if (success) {
-            // --- NOUVEAU : NOTIFICATION TEMPS RÉEL ---
-            // On envoie un signal sur le canal "/queue/friends" de l'utilisateur cible
+            // Notification WebSocket en temps réel à la cible (pour le badge rouge)
             simpMessagingTemplate.convertAndSendToUser(
-                receiverUsername, 
-                "/queue/friends", 
-                "NEW_REQUEST" // Le message importe peu, c'est le signal qui compte
+                receiverUsername, "/queue/friends", "NEW_REQUEST"
             );
-            // -----------------------------------------
-            
             return "Demande envoyée avec succès !";
         } else {
-            return "Erreur : Demande en attente.";
+            return "Erreur : Déjà amis ou demande en attente.";
         }
     }
 
-    // --- Méthodes utilitaires ---
+    // --- UTILITAIRES ---
 
+    /**
+     * Retourne l'heure actuelle au format HH:mm.
+     */
     private String getCurrentTime() {
         return LocalTime.now().format(DateTimeFormatter.ofPattern("HH:mm"));
     }
 
+    /**
+     * Supprime un utilisateur de la liste des connectés.
+     * Cette méthode statique est généralement appelée par l'écouteur de déconnexion WebSocket.
+     */
     public static void removeUser(String username) {
         userStatuses.remove(username);
     }

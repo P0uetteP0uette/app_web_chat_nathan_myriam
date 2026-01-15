@@ -12,7 +12,14 @@ import org.springframework.web.bind.annotation.ModelAttribute;
 
 import java.util.Optional;
 
-@ControllerAdvice // <--- C'est la magie : ça s'applique à TOUS les contrôleurs
+/**
+ * Contrôleur global pour l'injection de données communes à toutes les vues.
+ *
+ * Grâce à l'annotation ControllerAdvice, cette classe permet d'ajouter des attributs
+ * au modèle (Model) de manière transversale, pour qu'ils soient accessibles
+ * dans n'importe quel template HTML (header, sidebar, etc.) sans avoir à modifier chaque contrôleur.
+ */
+@ControllerAdvice
 public class GlobalControllerAdvice {
 
     @Autowired
@@ -21,7 +28,15 @@ public class GlobalControllerAdvice {
     @Autowired
     private FriendshipRepository friendshipRepository;
 
-    // Cette méthode s'exécute avant chaque chargement de page HTML
+    /**
+     * Ajoute le nombre de demandes d'amis en attente au modèle global.
+     *
+     * Cette méthode est exécutée automatiquement avant chaque rendu de page.
+     * Elle vérifie si l'utilisateur est connecté, et si oui, compte ses demandes
+     * avec le statut WAITING pour afficher la pastille de notification rouge.
+     *
+     * @return Le nombre de demandes en attente (0 si non connecté).
+     */
     @ModelAttribute("pendingRequestCount")
     public long addPendingRequestsToModel() {
         Authentication auth = SecurityContextHolder.getContext().getAuthentication();
@@ -36,6 +51,6 @@ public class GlobalControllerAdvice {
                 return friendshipRepository.countByFriendAndStatus(me.get(), FriendshipStatus.WAITING);
             }
         }
-        return 0; // 0 notification si pas connecté
+        return 0;
     }
 }

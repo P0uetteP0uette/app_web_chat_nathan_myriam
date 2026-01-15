@@ -1,55 +1,75 @@
-/* ================================================================
-   LOGIQUE CHAT PRIVÉ + GESTION SONORE + INDICATEUR DE FRAPPE
-   + GESTION DES AMIS (Vérification et Demande)
-   ================================================================ */
+/**
+ * @file chat-popup.js
+ * @description Gestion de la logique du chat privé (popup), des notifications sonores,
+ * de l'indicateur de frappe et de la modale d'ajout d'ami.
+ * * Ce script gère l'interface WebSocket pour les messages privés (/user/queue/private)
+ * et les interactions DOM pour la fenêtre de discussion flottante.
+ */
 
+// --- VARIABLES GLOBALES ---
+
+/** @type {string|null} Pseudo de l'ami avec qui la discussion est ouverte. */
 let currentFriend = null;
+
+/** @type {Object|null} Client Stomp pour la connexion WebSocket autonome (si hors page principale). */
 let popupStompClient = null;
+
+/** @type {Object} Stockage temporaire des messages reçus pour les fenêtres fermées. */
 let pendingMessages = {}; 
 
-// --- NOUVEAU : Variable pour stocker le pseudo de la personne à ajouter ---
+/** @type {string|null} Cible de la demande d'ami (pour la modale). */
 let targetUserForRequest = null;
 
 // --- VARIABLES INDICATEUR DE FRAPPE ---
 let isPrivateTyping = false;
-let privateTypingTimeout = null;     // Timer pour l'envoi
-let privateDisplayTimeout = null;    // Timer pour l'affichage
+let privateTypingTimeout = null;
+let privateDisplayTimeout = null;
 
-// --- GESTION DU SON ---
+/** @type {boolean} État du son (activé/désactivé), persisté dans le localStorage. */
 let soundEnabled = localStorage.getItem("chatSoundEnabled") !== "false";
 
+/**
+ * Initialisation au chargement du DOM.
+ * Restaure la session de chat, configure les écouteurs d'événements et le son.
+ */
 document.addEventListener("DOMContentLoaded", function() {
     updateSoundButtonUI();
 
+    // Restaure le chat ouvert (lié spécifiquement à l'utilisateur connecté pour éviter les conflits)
     const savedFriend = localStorage.getItem("openChatFriend_" + currentUserGlobal);
     if (savedFriend) openChat(savedFriend);
 
-    // Détection connexion
+    // Détection du mode de fonctionnement (Intégré vs Autonome)
     if (document.getElementById("chat-box")) {
-        console.log("🔗 Popup : Mode Accueil (Écoute chat.js)");
+        // Mode Intégré : On écoute l'événement relayé par chat.js
         window.addEventListener('private-message-received', function(e) {
             onPopupMessageReceived(e.detail);
         });
     } else {
-        console.log("🔌 Popup : Mode Autonome (Connexion manuelle)");
+        // Mode Autonome : Connexion manuelle au WebSocket
         connectStandalone();
     }
 
-    // GESTION DE LA FRAPPE
+    // Gestion de l'input et de l'indicateur de frappe
     const popupInput = document.getElementById("popup-chat-input");
     if (popupInput) {
         popupInput.addEventListener("input", function() {
             if (!currentFriend) return;
+            
+            // Envoie le signal "TYPING" une seule fois au début de la frappe
             if (!isPrivateTyping) {
                 isPrivateTyping = true;
                 sendPrivateTypingSignal();
             }
+            
+            // Debounce : Réinitialise le statut après 2 secondes d'inactivité
             clearTimeout(privateTypingTimeout);
             privateTypingTimeout = setTimeout(() => {
                 isPrivateTyping = false;
             }, 2000);
         });
 
+        // Arrêt immédiat du typing lors de l'envoi (Entrée)
         popupInput.addEventListener("keydown", function(e) {
             if (e.key === "Enter") {
                 isPrivateTyping = false;
@@ -59,13 +79,13 @@ document.addEventListener("DOMContentLoaded", function() {
     }
 });
 
-// --- FONCTIONS SONORES (Identiques à ton code) ---
-function toggleSound() {
-    soundEnabled = !soundEnabled; 
-    localStorage.setItem("chatSoundEnabled", soundEnabled); 
-    updateSoundButtonUI(); 
-}
+/* ================================================================
+   GESTION SONORE
+   ================================================================ */
 
+/**
+ * Met à jour l'icône et le texte du bouton de son dans l'interface.
+ */
 function updateSoundButtonUI() {
     const btnIcon = document.getElementById("sound-icon");
     const btnText = document.getElementById("sound-text");
@@ -76,19 +96,29 @@ function updateSoundButtonUI() {
     if (btn) btn.style.opacity = soundEnabled ? "1" : "0.6";
 }
 
+/**
+ * Joue le son de notification si l'option est activée.
+ */
 function playNotificationSound() {
     if (!soundEnabled) return; 
     const audio = document.getElementById("notification-sound");
     if (audio) {
         audio.currentTime = 0; 
-        audio.play().catch(e => console.log("Son bloqué"));
+        audio.play().catch(() => {}); // Catch pour éviter les erreurs si le navigateur bloque l'autoplay
     }
 }
 
-// --- LOGIQUE CHAT ---
+/* ================================================================
+   LOGIQUE CHAT & WEBSOCKET
+   ================================================================ */
+
+/**
+ * Établit une connexion WebSocket indépendante (utilisé si la popup est détachée).
+ */
 function connectStandalone() {
     var socket = new SockJS('/chat-websocket');
     popupStompClient = Stomp.over(socket);
+    popupStompClient.debug = null; 
     popupStompClient.connect({}, function () {
         popupStompClient.subscribe('/user/queue/private', function (payload) {
             onPopupMessageReceived(JSON.parse(payload.body));
@@ -96,11 +126,15 @@ function connectStandalone() {
     });
 }
 
+/**
+ * Traite les messages entrants (Chat ou Typing).
+ * @param {Object} message - L'objet message reçu du WebSocket.
+ */
 function onPopupMessageReceived(message) {
-    if (typeof currentUserGlobal !== 'undefined' && message.sender === currentUserGlobal) {
-        return; 
-    }
+    // Ignore ses propres messages (écho)
+    if (typeof currentUserGlobal !== 'undefined' && message.sender === currentUserGlobal) return;
 
+    // Gestion de l'indicateur de frappe
     if (message.type === 'TYPING') {
         if (currentFriend && message.sender === currentFriend) {
             showPrivateTypingIndicator();
@@ -108,10 +142,12 @@ function onPopupMessageReceived(message) {
         return; 
     }
 
+    // Nouveau message réel reçu
     playNotificationSound();
 
     let conversationPartner = (message.sender === currentUserGlobal) ? message.recipient : message.sender;
     
+    // Si la fenêtre est ouverte sur la bonne personne, on affiche directement
     if (currentFriend && currentFriend === conversationPartner) {
         hidePrivateTypingIndicator(); 
         displayMessage(message);
@@ -119,6 +155,7 @@ function onPopupMessageReceived(message) {
         return;
     }
     
+    // Sinon, on stocke en attente et on affiche une notification visuelle
     if (!pendingMessages[conversationPartner]) {
         pendingMessages[conversationPartner] = [];
     }
@@ -126,31 +163,32 @@ function onPopupMessageReceived(message) {
     showNotification(conversationPartner);
 }
 
-// --- FONCTIONS D'ENVOI ---
+/* ================================================================
+   ENVOI DE MESSAGES
+   ================================================================ */
+
+/**
+ * Envoie un signal "TYPING" au destinataire via WebSocket.
+ */
 function sendPrivateTypingSignal() {
-    let activeClient = null;
-    if (typeof stompClient !== 'undefined' && stompClient && stompClient.connected) {
-        activeClient = stompClient;
-    } else if (popupStompClient && popupStompClient.connected) {
-        activeClient = popupStompClient;
-    }
+    let activeClient = (typeof stompClient !== 'undefined' && stompClient && stompClient.connected) ? stompClient : popupStompClient;
 
     if (activeClient && currentFriend) {
-        const msg = { 
-            sender: currentUserGlobal, 
-            recipient: currentFriend, 
-            type: 'TYPING' 
-        };
+        const msg = { sender: currentUserGlobal, recipient: currentFriend, type: 'TYPING' };
         activeClient.send("/app/chat.private.typing", {}, JSON.stringify(msg));
     }
 }
 
+/**
+ * Récupère le texte de l'input, l'affiche localement et l'envoie au serveur.
+ */
 function sendPrivateMessage() {
     const input = document.getElementById("popup-chat-input");
     const content = input.value.trim();
     
     if (!content || !currentFriend) return;
 
+    // Affichage optimiste (immédiat)
     const tempMsg = {
         sender: currentUserGlobal,
         content: content,
@@ -158,15 +196,12 @@ function sendPrivateMessage() {
     };
     displayMessage(tempMsg);
     scrollToBottom();
+    
     input.value = "";
     input.focus();
 
-    let activeClient = null;
-    if (typeof stompClient !== 'undefined' && stompClient && stompClient.connected) {
-        activeClient = stompClient;
-    } else if (popupStompClient && popupStompClient.connected) {
-        activeClient = popupStompClient;
-    }
+    // Sélection du client WebSocket actif
+    let activeClient = (typeof stompClient !== 'undefined' && stompClient && stompClient.connected) ? stompClient : popupStompClient;
 
     if (activeClient) {
         const chatMessage = {
@@ -179,59 +214,66 @@ function sendPrivateMessage() {
     }
 }
 
-// --- UI & AFFICHAGE ---
+/* ================================================================
+   INDICATEUR DE FRAPPE (UI)
+   ================================================================ */
+
+/**
+ * Affiche le texte "En train d'écrire..." pendant 3.5 secondes max.
+ */
 function showPrivateTypingIndicator() {
     const indicator = document.getElementById("private-typing-indicator");
     if (!indicator) return;
 
     indicator.innerText = "En train d'écrire...";
     indicator.style.display = "block";
-
+    
     if (privateDisplayTimeout) clearTimeout(privateDisplayTimeout);
-
-    privateDisplayTimeout = setTimeout(() => {
-        hidePrivateTypingIndicator();
-    }, 3500);
+    privateDisplayTimeout = setTimeout(() => { hidePrivateTypingIndicator(); }, 3500);
 }
 
+/**
+ * Masque l'indicateur de frappe.
+ */
 function hidePrivateTypingIndicator() {
     const indicator = document.getElementById("private-typing-indicator");
-    if (indicator) {
-        indicator.innerText = "";
-    }
+    if (indicator) indicator.innerText = "";
 }
 
-// --- MODIFICATION MAJEURE ICI : openChat devient ASYNC ---
-async function openChat(friendName) {
-    console.log("🚀 [POPUP] openChat appelée pour :", friendName); // LOG DE DEBUG
+/* ================================================================
+   OUVERTURE CHAT & LOGIQUE AMITIÉ
+   ================================================================ */
 
-    // Si c'est nous-même, on arrête
+/**
+ * Tente d'ouvrir un chat privé. Vérifie d'abord l'amitié côté serveur.
+ * @param {string} friendName - Le pseudo de l'utilisateur cible.
+ */
+async function openChat(friendName) {
     if (friendName === currentUserGlobal) return;
 
-    // 1. On demande au serveur : "Est-ce qu'on est amis ?"
     try {
+        // Vérification AJAX de l'amitié
         const response = await fetch(`/api/friends/check?target=${friendName}`);
         const areFriends = await response.json();
 
         if (areFriends) {
-            // A. OUI -> On ouvre le chat normalement (ta logique existante)
             startChatLogic(friendName);
         } else {
-            // B. NON -> On ouvre la modal "Ajouter ami"
+            // Si pas amis, ouvre la modale de demande d'ajout
             openAddFriendModal(friendName);
         }
     } catch (e) {
-        console.error("Erreur vérification amitié", e);
-        // SECURITÉ : En cas d'erreur (serveur éteint, bug...), ON BLOQUE L'ACCÈS.
-        alert("Impossible de vérifier l'amitié. Veuillez rafraîchir la page.");
-        // startChatLogic(friendName); // <--- ON COMMENTE OU SUPPRIME CETTE LIGNE
+        console.error("Erreur API Check Friend", e);
+        alert("Impossible de vérifier l'amitié.");
     }
 }
+window.openChat = openChat; // Exposition globale pour appel depuis chat.js
 
-window.openChat = openChat;
-console.log("✅ [POPUP] openChat est maintenant attachée à window et globale.");
-
-// --- TA LOGIQUE D'OUVERTURE DE CHAT DÉPLACÉE ICI ---
+/**
+ * Initialise l'interface de chat une fois l'amitié validée.
+ * Charge l'historique et gère la persistance (localStorage).
+ * @param {string} friendName - Le pseudo de l'ami.
+ */
 function startChatLogic(friendName) {
     currentFriend = friendName;
     const nameLabel = document.getElementById("popup-friend-name");
@@ -240,11 +282,13 @@ function startChatLogic(friendName) {
     const win = document.getElementById("popup-window");
     if(win) win.style.display = "block";
 
+    // Sauvegarde la session chat liée à l'utilisateur courant
     localStorage.setItem("openChatFriend_" + currentUserGlobal, friendName);
     
     hidePrivateTypingIndicator();
     loadMessages();
     
+    // Affiche les messages reçus pendant que la fenêtre était fermée
     if (pendingMessages[friendName] && pendingMessages[friendName].length > 0) {
         setTimeout(() => {
             pendingMessages[friendName].forEach(msg => displayMessage(msg));
@@ -261,6 +305,9 @@ function startChatLogic(friendName) {
     clearNotification(friendName);
 }
 
+/**
+ * Ferme la fenêtre de chat et nettoie le localStorage.
+ */
 function closeChat() {
     const win = document.getElementById("popup-window");
     if(win) win.style.display = "none";
@@ -268,26 +315,45 @@ function closeChat() {
     localStorage.removeItem("openChatFriend_" + currentUserGlobal);
 }
 
-// --- NOUVELLES FONCTIONS POUR LA MODAL ---
+/* ================================================================
+   MODAL AJOUT D'AMI
+   ================================================================ */
+
+/**
+ * Ouvre la modale proposant d'ajouter un utilisateur en ami.
+ * @param {string} username - Pseudo de l'utilisateur à ajouter.
+ */
 function openAddFriendModal(username) {
     targetUserForRequest = username;
     const modalTargetText = document.getElementById("modal-target-user");
     if(modalTargetText) modalTargetText.innerText = username;
     
+    const feedback = document.getElementById("modal-feedback");
+    if (feedback) {
+        feedback.innerText = "";
+        feedback.style.color = "inherit";
+    }
+
     const modal = document.getElementById("add-friend-modal");
     if(modal) modal.style.display = "flex";
 }
 
+/**
+ * Ferme la modale d'ajout d'ami.
+ */
 function closeAddFriendModal() {
     const modal = document.getElementById("add-friend-modal");
     if(modal) modal.style.display = "none";
     targetUserForRequest = null;
 }
 
+/**
+ * Envoie la requête POST pour créer une demande d'ami.
+ * Met à jour l'interface avec le retour du serveur.
+ */
 function confirmAddFriend() {
     if (!targetUserForRequest) return;
-    
-    // Récupérer la zone de texte qu'on vient de créer
+
     const feedbackZone = document.getElementById("modal-feedback");
     if(feedbackZone) {
         feedbackZone.innerText = "Envoi en cours...";
@@ -301,17 +367,14 @@ function confirmAddFriend() {
     })
     .then(response => response.text())
     .then(msg => {
-        // --- REMPLACEMENT DE L'ALERT ---
         if (feedbackZone) {
-            feedbackZone.innerText = msg; // Affiche le message du serveur
-
-            // Change la couleur selon le succès ou l'échec
+            feedbackZone.innerText = msg;
             if (msg.includes("succès") || msg.includes("sent")) {
                 feedbackZone.style.color = "green";
-                // Optionnel : Fermer la modal automatiquement après 1.5 seconde si succès
+                // Fermeture automatique après succès
                 setTimeout(() => {
                     closeAddFriendModal();
-                    feedbackZone.innerText = ""; // On vide pour la prochaine fois
+                    feedbackZone.innerText = "";
                 }, 1500);
             } else {
                 feedbackZone.style.color = "red";
@@ -319,15 +382,20 @@ function confirmAddFriend() {
         }
     })
     .catch(err => {
-        console.error(err);
         if (feedbackZone) {
             feedbackZone.innerText = "Erreur technique.";
             feedbackZone.style.color = "red";
         }
     });
 }
-// -----------------------------------------
 
+/* ================================================================
+   CHARGEMENT HISTORIQUE ET RENDU DOM
+   ================================================================ */
+
+/**
+ * Charge l'historique des messages privés depuis l'API.
+ */
 function loadMessages() {
     if (!currentFriend) return;
     const chatBody = document.getElementById("popup-chat-body");
@@ -342,6 +410,10 @@ function loadMessages() {
         });
 }
 
+/**
+ * Crée et insère une bulle de message dans le DOM.
+ * @param {Object} msg - L'objet message contenant content, timestamp, sender, etc.
+ */
 function displayMessage(msg) {
     const chatBody = document.getElementById("popup-chat-body");
     if (!chatBody) return;
@@ -353,19 +425,16 @@ function displayMessage(msg) {
         else if (msg.time) timeStr = msg.time;
     } catch(e) {}
 
-    // 1. Création du conteneur avec la classe CSS propre
     const container = document.createElement("div");
     container.className = "popup-msg-container " + (isMe ? "sent" : "received");
     
     if (isMe) container.classList.add("message-sent");
     else container.classList.add("message-received");
 
-    // 2. L'heure
     const timeDiv = document.createElement("div");
     timeDiv.className = "popup-msg-time"; 
     timeDiv.innerText = timeStr;
 
-    // 3. La bulle
     const bubbleDiv = document.createElement("div");
     bubbleDiv.className = "popup-bubble"; 
     bubbleDiv.innerText = msg.content;
@@ -377,11 +446,18 @@ function displayMessage(msg) {
     scrollToBottom();
 }
 
+/**
+ * Scrolle la fenêtre de chat vers le bas pour afficher le dernier message.
+ */
 function scrollToBottom() {
     const chatBody = document.getElementById("popup-chat-body");
     if(chatBody) chatBody.scrollTop = chatBody.scrollHeight;
 }
 
+/**
+ * Gestionnaire d'événement pour la touche Entrée dans l'input.
+ * @param {KeyboardEvent} e 
+ */
 function handleKeyPress(e) {
     if (e.key === 'Enter') {
         e.preventDefault();
@@ -389,7 +465,14 @@ function handleKeyPress(e) {
     }
 }
 
-// Notifications Visuelles (Identiques)
+/* ================================================================
+   NOTIFICATIONS SIDEBAR
+   ================================================================ */
+
+/**
+ * Affiche une pastille "!" rouge sur l'utilisateur dans la liste d'amis.
+ * @param {string} friendName - Pseudo de l'ami.
+ */
 function showNotification(friendName) {
     const userElement = document.getElementById("user-" + friendName);
     if (userElement && !userElement.querySelector('.notification-badge')) {
@@ -399,29 +482,16 @@ function showNotification(friendName) {
         badge.innerText = "!";
         userElement.appendChild(badge);
     }
-    
-    const friendButtons = document.querySelectorAll(`[data-friend="${friendName}"]`);
-    friendButtons.forEach(btn => {
-        if (!btn.querySelector('.notification-badge')) {
-            const badge = document.createElement("span");
-            badge.className = "notification-badge";
-            badge.style.cssText = "position: absolute; top: -5px; right: -5px; background: #e74c3c; color: white; border-radius: 50%; width: 18px; height: 18px; display: flex; align-items: center; justify-content: center; font-size: 0.7em; font-weight: bold;";
-            badge.innerText = "!";
-            btn.style.position = "relative";
-            btn.appendChild(badge);
-        }
-    });
 }
 
+/**
+ * Retire la pastille de notification.
+ * @param {string} friendName - Pseudo de l'ami.
+ */
 function clearNotification(friendName) {
     const userElement = document.getElementById("user-" + friendName);
     if (userElement) {
         const badge = userElement.querySelector('.notification-badge');
         if (badge) badge.remove();
     }
-    const friendButtons = document.querySelectorAll(`[data-friend="${friendName}"]`);
-    friendButtons.forEach(btn => {
-        const badge = btn.querySelector('.notification-badge');
-        if (badge) badge.remove();
-    });
 }

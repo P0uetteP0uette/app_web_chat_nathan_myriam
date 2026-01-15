@@ -1,4 +1,3 @@
-/* auth.css - Uniquement pour Login et Register */
 * {
     box-sizing: border-box;
     margin: 0;
@@ -14,7 +13,6 @@ body {
     height: 100vh;
 }
 
-/* LA BOÎTE PRINCIPALE */
 .container {
     background-color: white;
     padding: 40px;
@@ -23,11 +21,9 @@ body {
     width: 100%;
     max-width: 400px;
     text-align: center;
-    
-    /* --- C'EST ICI LE SECRET POUR QUE ÇA NE BOUGE PAS --- */
-    position: relative;   /* Permet aux enfants "absolute" de se repérer */
-    min-height: 450px;    /* Hauteur minimale fixe (ajuste si besoin) */
-    display: flex;        /* Pour bien centrer le contenu verticalement */
+    position: relative;   
+    min-height: 450px;    
+    display: flex;        
     flex-direction: column;
     justify-content: center;
 }
@@ -37,7 +33,6 @@ h2 {
     color: #333;
 }
 
-/* ZONE FLOTTANTE POUR LES MESSAGES (MODIFIÉE) */
 .alert-box {
     position: absolute;
     top: 15px;
@@ -46,16 +41,15 @@ h2 {
     text-align: center;
     font-size: 0.9em;
     font-weight: bold;
-    z-index: 1000; /* On s'assure que c'est bien au-dessus */
+    z-index: 1000; 
 }
 
-/* On a supprimé "animation: fadeIn..." */
 .error-msg { 
     color: #e74c3c; 
-    background-color: rgba(255, 255, 255, 0.9); /* Fond blanc semi-transparent pour lisibilité */
+    background-color: rgba(255, 255, 255, 0.9); 
     padding: 5px;
     border-radius: 4px;
-    display: inline-block; /* Juste la taille du texte */
+    display: inline-block; 
 }
 
 .success-msg { 

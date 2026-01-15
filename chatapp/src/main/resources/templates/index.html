@@ -34,9 +34,7 @@
         <div style="margin-top: auto; padding-top: 20px; border-top: 1px solid #ddd;">
             
         <a href="/find-friends" style="display: block; width: 100%; background: #3498db; color: white; padding: 10px; border-radius: 5px; text-decoration: none; text-align: center; font-weight: bold; margin-bottom: 10px; transition: background 0.3s; position: relative;">
-            
             <i class="bi bi-person-plus-fill"></i> Trouver des amis
-
             <span th:if="${pendingRequestCount != null and pendingRequestCount > 0}" 
                 th:text="${pendingRequestCount}"
                 style="
@@ -57,7 +55,6 @@
                     box-shadow: 0 2px 5px rgba(0,0,0,0.2);
                 ">
             </span>
-
         </a>
 
             <form th:action="@{/logout}" method="post">
