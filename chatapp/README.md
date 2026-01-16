@@ -60,7 +60,7 @@ Voici un aperçu de l'application en action :
 | ![Login](images/demo_login.png) | ![Chat Public](images/demo_chat.png) |
 
 **Le Chat Privé (Multitâche) :**
-Ci-dessous, on voit une conversation privée ouverte en popup par-dessus le chat général, avec le badge de notification actif.
+Ci-dessous, on voit une conversation privée ouverte en popup par-dessus le chat général.
 ![Chat Privé Popup](images/demo_popup.png)
 
 ### 🛠️ Stack Technique
